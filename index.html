@@ -40,6 +40,7 @@ input[type=text]{text-transform:uppercase}
 .btn-primary{background:#0F6E56;color:#E1F5EE;border-color:#0F6E56}.btn-primary:hover{background:#085041}
 .btn-danger{background:#993C1D;color:#FAECE7;border-color:#993C1D}.btn-danger:hover{background:#712B13}
 .btn-warn{background:#EF9F27;color:#fff;border-color:#EF9F27}.btn-warn:hover{background:#BA7517}
+.btn-dark{background:#2C2C2A;color:#fff;border-color:#2C2C2A}.btn-dark:hover{background:#444441}
 .btn-sm{width:auto;padding:4px 10px;font-size:11px}
 .btn-gap{display:flex;flex-direction:column;gap:3px}
 .btn-outline{background:#fff;border-color:#d3d1c7;margin-top:5px}
@@ -61,6 +62,8 @@ tr.ok-row td{background:#f8fffc}
 .tabs{display:flex;gap:4px;margin-bottom:.875rem;flex-wrap:wrap}
 .tab{padding:6px 14px;font-size:13px;border:1px solid #e0dfd8;border-radius:8px;cursor:pointer;background:#f4f3f0;color:#888780;font-family:inherit;transition:background .12s}
 .tab.active{background:#fff;color:#1a1a18;border-color:#d3d1c7;font-weight:500}
+.tab-mgmt{background:#2C2C2A;color:#D3D1C7;border-color:#444441}
+.tab-mgmt.active{background:#444441;color:#fff;border-color:#444441}
 .panel{display:none}.panel.active{display:block}
 .config-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f4f3f0;font-size:13px}
 .config-row:last-child{border-bottom:none}.config-label{color:#5F5E5A;font-size:12px}
@@ -78,18 +81,41 @@ tr.ok-row td{background:#f8fffc}
 .divider{margin:1rem 0;border:none;border-top:1px solid #e0dfd8}
 .header-right{display:flex;align-items:center;gap:10px}
 select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
+/* Modal */
 .modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:#fff;border-radius:12px;padding:1.5rem;width:360px;max-width:95vw;border:1px solid #e0dfd8}
+.modal{background:#fff;border-radius:12px;padding:1.5rem;width:380px;max-width:95vw;border:1px solid #e0dfd8}
 .modal-title{font-size:15px;font-weight:600;margin-bottom:1rem}
 .modal-info{font-size:13px;color:#5F5E5A;margin-bottom:1rem;padding:10px;background:#f4f3f0;border-radius:8px;line-height:1.7}
 .modal-btns{display:flex;gap:8px;margin-top:1rem}
 .modal-btns .btn{flex:1}
+/* Gerencia */
+.mgmt-screen{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#f4f3f0;z-index:200;overflow-y:auto}
+.mgmt-screen.open{display:block}
+.mgmt-inner{max-width:1080px;margin:0 auto;padding:1.25rem}
+.mgmt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid #e0dfd8}
+.mgmt-title{font-size:18px;font-weight:600;color:#2C2C2A}
+.month-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:1.25rem}
+.month-kpi{background:#2C2C2A;border-radius:8px;padding:.875rem 1rem;color:#fff}
+.month-kpi-label{font-size:10px;color:#888780;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.month-kpi-value{font-size:24px;font-weight:600;color:#fff}
+.month-kpi-value.g{color:#9FE1CB}
+.month-kpi-value.r{color:#F0997B}
+.lock-screen{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.lock-box{background:#fff;border-radius:12px;padding:2rem;width:320px;border:1px solid #e0dfd8;text-align:center}
+.lock-icon{font-size:32px;margin-bottom:1rem}
+.lock-title{font-size:16px;font-weight:600;margin-bottom:.5rem}
+.lock-sub{font-size:13px;color:#888780;margin-bottom:1.5rem}
+.history-day{margin-bottom:1rem;border:1px solid #e0dfd8;border-radius:8px;overflow:hidden}
+.history-day-header{background:#f4f3f0;padding:8px 12px;font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.history-day-body{display:none}
+.history-day-body.open{display:block}
 </style>
 </head>
 <body>
-<div class="app">
 
+<!-- ══════════════════ VISTA OPERADOR ══════════════════ -->
+<div class="app">
   <div class="header">
     <div>
       <div class="header-title">Garaje — Control</div>
@@ -121,10 +147,7 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
           <span class="sec-title" style="border:none;padding:0;margin:0">Registrar entrada</span>
         </div>
         <div id="alertForm"></div>
-        <div class="form-group">
-          <label>Placa</label>
-          <input type="text" id="plate" placeholder="ABC-123" maxlength="8">
-        </div>
+        <div class="form-group"><label>Placa</label><input type="text" id="plate" placeholder="ABC-123" maxlength="8"></div>
         <div class="form-group">
           <label>Tipo</label>
           <select id="tarifa" onchange="onTarifaChange()">
@@ -132,18 +155,12 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
             <option value="mensual">Mensual — S/ 100.00</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Precio (S/)</label>
-          <input type="number" id="precio" value="5" step="0.50" min="0">
-        </div>
+        <div class="form-group"><label>Precio (S/)</label><input type="number" id="precio" value="5" step="0.50" min="0"></div>
         <div class="form-group" id="grupoVenc" style="display:none">
           <label>Fecha límite de pago (30 días)</label>
           <input type="text" id="fechaVenc" readonly style="background:#f4f3f0;color:#5F5E5A;text-transform:none">
         </div>
-        <div class="form-group">
-          <label>Observación</label>
-          <input type="text" id="obs" placeholder="opcional" style="text-transform:none">
-        </div>
+        <div class="form-group"><label>Observación</label><input type="text" id="obs" placeholder="opcional" style="text-transform:none"></div>
         <button class="btn btn-primary" onclick="registrarEntrada()">Registrar entrada</button>
       </div>
 
@@ -151,10 +168,16 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
         <div class="sec-hdr" style="border-bottom:1px solid #e0dfd8">
           <span class="sec-title" style="border:none;padding:0;margin:0">Registrar salida</span>
         </div>
-        <div class="search-row">
-          <input type="text" id="plateExit" placeholder="Buscar placa..." oninput="buscarPlaca(this.value)">
-        </div>
+        <div class="search-row"><input type="text" id="plateExit" placeholder="Buscar placa..." oninput="buscarPlaca(this.value)"></div>
         <div id="exitResults"></div>
+      </div>
+
+      <!-- RESUMEN DEL DÍA (vista operador) -->
+      <div class="card">
+        <div class="sec-hdr" style="border-bottom:1px solid #e0dfd8">
+          <span class="sec-title" style="border:none;padding:0;margin:0">Resumen del día</span>
+        </div>
+        <div id="resumenDia"></div>
       </div>
     </div>
 
@@ -162,14 +185,13 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
     <div>
       <div class="tabs">
         <button class="tab active" onclick="showTab('garaje',event)">En garaje</button>
-        <button class="tab" onclick="showTab('historial',event)">Historial hoy</button>
-        <button class="tab" onclick="showTab('reporte',event)">Reporte</button>
+        <button class="tab" onclick="showTab('mensuales',event)">Mensuales</button>
         <button class="tab" onclick="showTab('config',event)">Config</button>
+        <button class="tab tab-mgmt" onclick="abrirGerencia()">Gerencia ▲</button>
       </div>
 
       <!-- TAB GARAJE -->
       <div id="tab-garaje" class="panel active">
-
         <div class="card">
           <div class="sec-hdr">
             <span class="sec-title">En garaje hoy</span>
@@ -178,60 +200,39 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
           <div class="overflow-x">
             <table>
               <thead><tr><th>Placa</th><th>Entrada</th><th>Tiempo</th><th>Precio</th><th>Operador</th><th></th></tr></thead>
-              <tbody id="tblNormal"><tr><td colspan="6" class="empty">Sin vehículos diarios activos</td></tr></tbody>
+              <tbody id="tblNormal"><tr><td colspan="6" class="empty">Sin vehículos diarios</td></tr></tbody>
             </table>
           </div>
         </div>
-
         <div class="card">
           <div class="sec-hdr">
             <span class="sec-title" style="color:#633806">Acumulados diarios</span>
             <span class="sec-count sc-a" id="cntAcum">0</span>
           </div>
-          <div class="mini" style="margin-bottom:.75rem">Diarios con más de 24 h en el garaje · se acumula S/ <span id="txtTarD">5.00</span> por día adicional</div>
+          <div class="mini" style="margin-bottom:.75rem">+24 h sin salida · acumula S/ <span id="txtTarD">5.00</span>/día</div>
           <div class="overflow-x">
             <table>
-              <thead><tr><th>Placa</th><th>Ingresó</th><th>Días acum.</th><th>Precio base</th><th>Deuda acum.</th><th>Operador</th><th></th></tr></thead>
+              <thead><tr><th>Placa</th><th>Ingresó</th><th>Días acum.</th><th>Precio base</th><th>Deuda</th><th>Operador</th><th></th></tr></thead>
               <tbody id="tblAcum"><tr><td colspan="7" class="empty">Sin acumulados</td></tr></tbody>
             </table>
           </div>
         </div>
+      </div>
 
+      <!-- TAB MENSUALES -->
+      <div id="tab-mensuales" class="panel">
         <div class="card">
           <div class="sec-hdr">
             <span class="sec-title" style="color:#185FA5">Mensuales</span>
             <span class="sec-count sc-m" id="cntMensual">0</span>
           </div>
-          <div class="mini" style="margin-bottom:.75rem">Pago único al ingreso · vigencia 30 días · si vence sin pago acumula deuda diaria</div>
+          <div class="mini" style="margin-bottom:.75rem">Pago único · vigencia 30 días · si vence acumula deuda diaria</div>
           <div class="overflow-x">
             <table>
-              <thead><tr><th>Placa</th><th>Ingresó</th><th>Fecha límite pago</th><th>Días restantes</th><th>Precio</th><th>Deuda acum.</th><th>Operador</th><th></th></tr></thead>
-              <tbody id="tblMensual"><tr><td colspan="8" class="empty">Sin mensuales registrados</td></tr></tbody>
+              <thead><tr><th>Placa</th><th>Ingresó</th><th>Fecha límite pago</th><th>Días restantes</th><th>Precio</th><th>Deuda</th><th>Operador</th><th></th></tr></thead>
+              <tbody id="tblMensual"><tr><td colspan="8" class="empty">Sin mensuales</td></tr></tbody>
             </table>
           </div>
-        </div>
-
-      </div>
-
-      <!-- TAB HISTORIAL -->
-      <div id="tab-historial" class="panel">
-        <div class="card">
-          <div class="overflow-x">
-            <table>
-              <thead><tr><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Precio</th><th>Operador</th></tr></thead>
-              <tbody id="tblHistorial"><tr><td colspan="7" class="empty">Sin salidas hoy</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB REPORTE -->
-      <div id="tab-reporte" class="panel">
-        <div class="card">
-          <div class="sec-hdr"><span class="sec-title">Resumen del día</span></div>
-          <div id="reporteContenido"></div>
-          <hr class="divider">
-          <button class="btn" onclick="exportarReporte()">Exportar a Google Sheets</button>
         </div>
       </div>
 
@@ -241,12 +242,12 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
           <div class="sec-hdr"><span class="sec-title">Conexión Google Sheets</span></div>
           <div id="alertConfig"></div>
           <div class="form-group">
-            <label>ID de Google Sheet (lectura)</label>
+            <label>ID de Google Sheet</label>
             <input type="text" id="sheetId" oninput="guardarConfig()" style="text-transform:none">
             <div class="mini" style="margin-top:3px">Compartir como Lector · cualquiera con el enlace</div>
           </div>
           <div class="form-group">
-            <label>URL Web App Apps Script (escritura)</label>
+            <label>URL Web App Apps Script</label>
             <input type="text" id="webAppUrl" oninput="guardarConfig()" style="text-transform:none">
           </div>
           <button class="btn btn-primary" onclick="probarConexion()">Probar conexión</button>
@@ -264,15 +265,91 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
   </div>
 </div>
 
+<!-- ══════════════════ PANTALLA GERENCIA ══════════════════ -->
+<div class="mgmt-screen" id="mgmtScreen">
+  <!-- Lock screen -->
+  <div class="lock-screen" id="lockScreen">
+    <div class="lock-box">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-title">Acceso Gerencia</div>
+      <div class="lock-sub">Ingresa la contraseña para continuar</div>
+      <div id="alertLock"></div>
+      <div class="form-group">
+        <input type="password" id="passInput" placeholder="Contraseña" onkeydown="if(event.key==='Enter')verificarPass()">
+      </div>
+      <button class="btn btn-dark" onclick="verificarPass()" style="margin-top:.5rem">Ingresar</button>
+      <button class="btn btn-outline" onclick="cerrarGerencia()" style="margin-top:.5rem">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Panel gerencia -->
+  <div id="mgmtPanel" style="display:none">
+    <div class="mgmt-inner">
+      <div class="mgmt-header">
+        <div>
+          <div class="mgmt-title">Gerencia — Resúmenes</div>
+          <div class="mini" id="mgmtFecha"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="exportarYReiniciar()" style="padding:7px 14px;font-size:13px">Exportar y cerrar día</button>
+          <button class="btn btn-outline btn-sm" onclick="cerrarGerencia()" style="padding:7px 14px;font-size:13px">Cerrar</button>
+        </div>
+      </div>
+
+      <!-- KPIs mes -->
+      <div class="month-grid" id="monthKpis"></div>
+
+      <!-- Resumen del día actual -->
+      <div class="card">
+        <div class="sec-hdr"><span class="sec-title">Detalle del día de hoy</span></div>
+        <div id="mgmtResumenHoy"></div>
+      </div>
+
+      <!-- Snapshot de cierre -->
+      <div class="card">
+        <div class="sec-hdr">
+          <span class="sec-title" style="color:#185FA5">Cierre de puerta — vehículos que quedan</span>
+          <span class="mini" id="snapHora"></span>
+        </div>
+        <div class="mini" style="margin-bottom:.75rem">Vehículos dentro al momento de exportar · pasan al día siguiente</div>
+        <div id="mgmtSnapshot">
+          <div class="empty">Exporta el día para ver el snapshot de cierre</div>
+        </div>
+      </div>
+
+      <!-- Historial de días anteriores -->
+      <div class="card">
+        <div class="sec-hdr">
+          <span class="sec-title">Historial por día</span>
+          <span class="mini">Todos los días guardados</span>
+        </div>
+        <div id="mgmtHistorial"></div>
+      </div>
+
+      <!-- Mensuales activos -->
+      <div class="card">
+        <div class="sec-hdr"><span class="sec-title" style="color:#185FA5">Mensuales activos</span></div>
+        <div class="overflow-x">
+          <table>
+            <thead><tr><th>Placa</th><th>Ingresó</th><th>Fecha límite</th><th>Días rest.</th><th>Precio</th><th>Deuda</th><th>Operador</th></tr></thead>
+            <tbody id="mgmtMensuales"><tr><td colspan="7" class="empty">Sin mensuales</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:1rem 0">
+        <button class="btn btn-outline btn-sm" onclick="cerrarGerencia()" style="width:auto;padding:8px 24px">Cerrar gerencia</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL COBRO -->
 <div class="modal-bg" id="modalPago">
   <div class="modal">
     <div class="modal-title">Registrar cobro</div>
     <div class="modal-info" id="modalInfo"></div>
-    <div class="form-group">
-      <label>Monto a cobrar (S/)</label>
-      <input type="number" id="montoPago" step="0.50" min="0">
-    </div>
+    <div class="form-group"><label>Monto a cobrar (S/)</label><input type="number" id="montoPago" step="0.50" min="0"></div>
     <div class="modal-btns">
       <button class="btn btn-primary" onclick="confirmarPago()">Confirmar pago</button>
       <button class="btn" onclick="cerrarModal()">Cancelar</button>
@@ -281,8 +358,10 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
 </div>
 
 <script>
+// ── CONFIG ───────────────────────────────────────────────────
 const SHEET_ID_DEFAULT = '175PXAW8nbbRDcltZEl9oiMJOX8SjzItGa58UvWPZizY';
 const WEB_APP_DEFAULT  = 'https://script.google.com/macros/s/AKfycbzSOELx2u3qAzIXAbqbcbZN5XqF63-GmjMhNvZqdzYEZXToWGyRvN8JwCqj2KcH2PdlXw/exec';
+const PASS_GERENCIA    = 'garage2024';
 
 const MAX    = () => parseInt(localStorage.getItem('pk_cap') || '50');
 const WEBURL = () => localStorage.getItem('pk_url') || WEB_APP_DEFAULT;
@@ -293,121 +372,111 @@ const MS_DIA = 86400000;
 
 let activos   = JSON.parse(localStorage.getItem('pk_activos') || '[]');
 let historial = JSON.parse(localStorage.getItem('pk_hist')    || '[]');
+// histDias: array de objetos {fecha, items[], totalDiarios, totalMensuales, total}
+let histDias  = JSON.parse(localStorage.getItem('pk_histDias') || '[]');
 let pagoActual = null;
 
 function save() {
-  localStorage.setItem('pk_activos', JSON.stringify(activos));
-  localStorage.setItem('pk_hist',    JSON.stringify(historial));
+  localStorage.setItem('pk_activos',  JSON.stringify(activos));
+  localStorage.setItem('pk_hist',     JSON.stringify(historial));
+  localStorage.setItem('pk_histDias', JSON.stringify(histDias));
 }
 
+// ── TIEMPO ───────────────────────────────────────────────────
 function horaStr()  { return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
 function fechaStr() { return new Date().toLocaleDateString('es-PE'); }
 function hoyLong()  { return new Date().toLocaleDateString('es-PE',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
 
 function parsearTs(fecha, hora) {
   try {
-    if (!fecha || !hora) return Date.now();
-    const p = fecha.split('/');
-    if (p.length !== 3) return Date.now();
-    const ts = new Date(p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0')+'T'+hora+':00').getTime();
-    return isNaN(ts) ? Date.now() : ts;
-  } catch(e) { return Date.now(); }
+    if (!fecha||!hora) return Date.now();
+    const p=fecha.split('/');
+    if(p.length!==3) return Date.now();
+    const ts=new Date(p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0')+'T'+hora+':00').getTime();
+    return isNaN(ts)?Date.now():ts;
+  } catch(e){return Date.now();}
 }
 
-function difMin(ts)  { return Math.floor((Date.now()-ts)/60000); }
+function difMin(ts)  {return Math.floor((Date.now()-ts)/60000);}
 function duracion(m) {
-  if (m < 60)   return m+'m';
-  if (m < 1440) return Math.floor(m/60)+'h '+(m%60)+'m';
+  if(m<60) return m+'m';
+  if(m<1440) return Math.floor(m/60)+'h '+(m%60)+'m';
   return Math.floor(m/1440)+'d '+Math.floor((m%1440)/60)+'h';
 }
-
-function fechaVencMensual() {
-  return new Date(Date.now()+30*MS_DIA).toLocaleDateString('es-PE');
-}
-
+function fechaVencMensual() {return new Date(Date.now()+30*MS_DIA).toLocaleDateString('es-PE');}
 function diasParaVencer(fv) {
   try {
-    const p = fv.split('/');
-    const lim = new Date(p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0')+'T23:59:59').getTime();
+    const p=fv.split('/');
+    const lim=new Date(p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0')+'T23:59:59').getTime();
     return Math.ceil((lim-Date.now())/MS_DIA);
-  } catch(e) { return 99; }
+  } catch(e){return 99;}
 }
 
-// ── LÓGICA DE DEUDA ─────────────────────────────────
+// ── DEUDA ────────────────────────────────────────────────────
 function infoDeuda(a) {
-  const tsE = parsearTs(a.fechaEntrada, a.horaEntrada);
-
-  if (a.tarifa === 'diario') {
-    // Cada 24h completas adicionales = 1 día de deuda
-    const diasExtra = Math.max(0, Math.floor((Date.now()-tsE)/MS_DIA));
-    return { esAcumulado: diasExtra >= 1, diasExtra, deuda: diasExtra * TAR_D() };
+  const tsE=parsearTs(a.fechaEntrada,a.horaEntrada);
+  if(a.tarifa==='diario'){
+    const de=Math.max(0,Math.floor((Date.now()-tsE)/MS_DIA));
+    return {esAcumulado:de>=1,diasExtra:de,deuda:de*TAR_D()};
   }
-
-  if (a.tarifa === 'mensual') {
-    const fv = a.fechaVencimiento || '';
-    if (!fv) return { esAcumulado: false, diasExtra: 0, deuda: 0 };
-    const dias = diasParaVencer(fv);
-    if (dias < 0) {
-      const diasV = Math.abs(dias);
-      return { esAcumulado: true, diasExtra: diasV, deuda: diasV * TAR_D() };
-    }
-    return { esAcumulado: false, diasExtra: 0, deuda: 0 };
+  if(a.tarifa==='mensual'){
+    const fv=a.fechaVencimiento||'';
+    if(!fv) return {esAcumulado:false,diasExtra:0,deuda:0};
+    const dias=diasParaVencer(fv);
+    if(dias<0){const dv=Math.abs(dias);return {esAcumulado:true,diasExtra:dv,deuda:dv*TAR_D()};}
+    return {esAcumulado:false,diasExtra:0,deuda:0};
   }
+  return {esAcumulado:false,diasExtra:0,deuda:0};
+}
+function totalDeuda(){return activos.reduce((s,a)=>s+infoDeuda(a).deuda,0);}
 
-  return { esAcumulado: false, diasExtra: 0, deuda: 0 };
+// ── FORMULARIO ───────────────────────────────────────────────
+function onTarifaChange(){
+  const val=document.getElementById('tarifa').value;
+  document.getElementById('precio').value=val==='mensual'?TAR_M().toFixed(2):TAR_D().toFixed(2);
+  const grp=document.getElementById('grupoVenc');
+  if(val==='mensual'){grp.style.display='block';document.getElementById('fechaVenc').value=fechaVencMensual();}
+  else grp.style.display='none';
 }
 
-function totalDeuda() {
-  return activos.reduce((s,a) => s+infoDeuda(a).deuda, 0);
-}
-
-// ── FORMULARIO ───────────────────────────────────────
-function onTarifaChange() {
-  const val = document.getElementById('tarifa').value;
-  document.getElementById('precio').value = val==='mensual' ? TAR_M().toFixed(2) : TAR_D().toFixed(2);
-  const grp = document.getElementById('grupoVenc');
-  if (val === 'mensual') { grp.style.display='block'; document.getElementById('fechaVenc').value=fechaVencMensual(); }
-  else grp.style.display = 'none';
-}
-
-function registrarEntrada() {
-  const placa  = document.getElementById('plate').value.trim().toUpperCase();
-  const tarifa = document.getElementById('tarifa').value;
-  const precio = parseFloat(document.getElementById('precio').value)||0;
-  const obs    = document.getElementById('obs').value.trim();
-  const op     = document.getElementById('operatorGlobal').value;
-  if (!placa) { alert_('alertForm','Ingresa la placa','error'); return; }
-  if (activos.find(a=>a.placa===placa)) { alert_('alertForm','Esta placa ya está en el garaje','error'); return; }
-  if (activos.length>=MAX()) { alert_('alertForm','Garaje lleno','error'); return; }
-  const fvenc = tarifa==='mensual' ? fechaVencMensual() : '';
-  const reg = { placa, tarifa, precio, obs, operador:op, horaEntrada:horaStr(), fechaEntrada:fechaStr(), fechaVencimiento:fvenc, deudaAcumulada:0, ts:Date.now() };
+function registrarEntrada(){
+  const placa=document.getElementById('plate').value.trim().toUpperCase();
+  const tarifa=document.getElementById('tarifa').value;
+  const precio=parseFloat(document.getElementById('precio').value)||0;
+  const obs=document.getElementById('obs').value.trim();
+  const op=document.getElementById('operatorGlobal').value;
+  if(!placa){alert_('alertForm','Ingresa la placa','error');return;}
+  if(activos.find(a=>a.placa===placa)){alert_('alertForm','Esta placa ya está en el garaje','error');return;}
+  if(activos.length>=MAX()){alert_('alertForm','Garaje lleno','error');return;}
+  const fvenc=tarifa==='mensual'?fechaVencMensual():'';
+  const reg={placa,tarifa,precio,obs,operador:op,horaEntrada:horaStr(),fechaEntrada:fechaStr(),fechaVencimiento:fvenc,deudaAcumulada:0,ts:Date.now()};
   activos.push(reg);
-  save(); renderAll();
+  save();renderAll();
   document.getElementById('plate').value='';
   document.getElementById('obs').value='';
   alert_('alertForm','Entrada registrada: '+placa,'success');
-  enviarASheets('entrada', reg);
+  enviarASheets('entrada',reg);
 }
 
-function registrarSalida(idx) {
-  const reg = activos[idx]; if(!reg) return;
-  const d = infoDeuda(reg);
-  const item = {...reg, horaSalida:horaStr(), fechaSalida:fechaStr(), minutos:difMin(reg.ts), deudaFinal:d.deuda};
+function registrarSalida(idx){
+  const reg=activos[idx];if(!reg)return;
+  const d=infoDeuda(reg);
+  const item={...reg,horaSalida:horaStr(),fechaSalida:fechaStr(),minutos:difMin(reg.ts),deudaFinal:d.deuda};
   historial.push(item);
   activos.splice(idx,1);
-  save(); renderAll();
+  save();renderAll();
   document.getElementById('plateExit').value='';
   document.getElementById('exitResults').innerHTML='';
-  enviarASheets('salida', item);
+  enviarASheets('salida',item);
 }
 
-function buscarPlaca(q) {
-  const el = document.getElementById('exitResults');
-  if (!q.trim()) { el.innerHTML=''; return; }
-  const matches = activos.filter(a=>a.placa.includes(q.trim().toUpperCase()));
-  if (!matches.length) { el.innerHTML='<div class="mini" style="padding:6px 0">No encontrado</div>'; return; }
-  el.innerHTML = matches.map(a=>{
-    const idx=activos.indexOf(a); const d=infoDeuda(a);
+function buscarPlaca(q){
+  const el=document.getElementById('exitResults');
+  if(!q.trim()){el.innerHTML='';return;}
+  const matches=activos.filter(a=>a.placa.includes(q.trim().toUpperCase()));
+  if(!matches.length){el.innerHTML='<div class="mini" style="padding:6px 0">No encontrado</div>';return;}
+  el.innerHTML=matches.map(a=>{
+    const idx=activos.indexOf(a);const d=infoDeuda(a);
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f4f3f0">
       <div><span class="plate">${a.placa}</span>
         <span class="mini" style="margin-left:6px">${duracion(difMin(a.ts))} · S/ ${a.precio.toFixed(2)} · ${a.tarifa}</span>
@@ -418,33 +487,51 @@ function buscarPlaca(q) {
   }).join('');
 }
 
-// ── MODAL ────────────────────────────────────────────
-function abrirPago(idx) {
-  const a=activos[idx]; const d=infoDeuda(a);
+// ── MODAL COBRO ──────────────────────────────────────────────
+function abrirPago(idx){
+  const a=activos[idx];const d=infoDeuda(a);
   pagoActual={idx,deuda:d.deuda};
   document.getElementById('modalInfo').innerHTML=
-    `<strong>${a.placa}</strong> · ${a.tarifa}<br>
-     Días acumulados: <strong>${d.diasExtra}</strong><br>
-     Deuda a cobrar: <strong class="red-txt">S/ ${d.deuda.toFixed(2)}</strong>`;
+    `<strong>${a.placa}</strong> · ${a.tarifa}<br>Días acumulados: <strong>${d.diasExtra}</strong><br>Deuda: <strong class="red-txt">S/ ${d.deuda.toFixed(2)}</strong>`;
   document.getElementById('montoPago').value=d.deuda.toFixed(2);
   document.getElementById('modalPago').classList.add('open');
 }
-function cerrarModal() { document.getElementById('modalPago').classList.remove('open'); pagoActual=null; }
-function confirmarPago() {
-  if(!pagoActual) return;
+function cerrarModal(){document.getElementById('modalPago').classList.remove('open');pagoActual=null;}
+function confirmarPago(){
+  if(!pagoActual)return;
   const monto=parseFloat(document.getElementById('montoPago').value)||0;
   const a=activos[pagoActual.idx];
   a.deudaAcumulada=(a.deudaAcumulada||0)+monto;
-  a.ts=Date.now(); a.horaEntrada=horaStr(); a.fechaEntrada=fechaStr();
+  a.ts=Date.now();a.horaEntrada=horaStr();a.fechaEntrada=fechaStr();
   if(a.tarifa==='mensual') a.fechaVencimiento=fechaVencMensual();
-  save(); renderAll();
+  save();renderAll();
   enviarASheets('pago_deuda',{placa:a.placa,monto,operador:document.getElementById('operatorGlobal').value});
   cerrarModal();
   alert_('alertForm',`Cobro: S/ ${monto.toFixed(2)} · ${a.placa}`,'success');
 }
 
-// ── RENDER ───────────────────────────────────────────
-function updateKPIs() {
+// ── RESUMEN DEL DÍA (operador) ───────────────────────────────
+function renderResumenDia(){
+  const hoyStr=fechaStr();
+  const items=historial.filter(h=>h.fechaSalida===hoyStr);
+  const diarios=items.filter(h=>h.tarifa==='diario');
+  const mens=items.filter(h=>h.tarifa==='mensual');
+  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
+  const byOp={};
+  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
+  const el=document.getElementById('resumenDia');
+  if(!items.length){el.innerHTML='<div class="empty" style="padding:1rem">Sin movimientos hoy</div>';return;}
+  el.innerHTML=`
+    <div class="report-row"><span>Diarios (${diarios.length})</span><span>S/ ${sumOf(diarios).toFixed(2)}</span></div>
+    <div class="report-row"><span>Mensuales (${mens.length})</span><span>S/ ${sumOf(mens).toFixed(2)}</span></div>
+    <div class="report-row total"><span>TOTAL</span><span>S/ ${sumOf(items).toFixed(2)}</span></div>
+    <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
+      ${Object.entries(byOp).map(([op,v])=>`<div class="report-row"><span class="mini">${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join('')}
+    </div>`;
+}
+
+// ── RENDER GARAJE ────────────────────────────────────────────
+function updateKPIs(){
   const hoyStr=fechaStr();
   const sal=historial.filter(h=>h.fechaSalida===hoyStr);
   const ing=sal.reduce((s,h)=>s+parseFloat(h.precio||0),0);
@@ -456,7 +543,7 @@ function updateKPIs() {
   document.getElementById('txtTarD').textContent=TAR_D().toFixed(2);
 }
 
-function renderGaraje() {
+function renderGaraje(){
   const normales=[],acumDiar=[],mensuales=[];
   activos.forEach((a,i)=>{
     const d=infoDeuda(a);
@@ -464,28 +551,27 @@ function renderGaraje() {
     else if(d.esAcumulado)   acumDiar.push({a,i,d});
     else                     normales.push({a,i,d});
   });
-
   document.getElementById('cntNormal').textContent=normales.length;
   document.getElementById('cntAcum').textContent=acumDiar.length;
   document.getElementById('cntMensual').textContent=mensuales.length;
 
-  // Diarios normales
+  // Normales
   const tbN=document.getElementById('tblNormal');
-  tbN.innerHTML=normales.length ? normales.map(({a,i})=>`<tr class="ok-row">
+  tbN.innerHTML=normales.length?normales.map(({a,i})=>`<tr class="ok-row">
     <td><span class="plate">${a.placa}</span></td>
     <td>${a.horaEntrada}<br><span class="mini">${a.fechaEntrada}</span></td>
     <td class="mini">${duracion(difMin(a.ts))}</td>
     <td>S/ ${a.precio.toFixed(2)}</td>
     <td class="mini">${a.operador}</td>
     <td><button class="btn btn-danger btn-sm" onclick="registrarSalida(${i})">Salida</button></td>
-  </tr>`).join('') : '<tr><td colspan="6" class="empty">Sin vehículos diarios activos</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="6" class="empty">Sin vehículos diarios activos</td></tr>';
 
-  // Acumulados diarios
+  // Acumulados
   const tbA=document.getElementById('tblAcum');
-  tbA.innerHTML=acumDiar.length ? acumDiar.map(({a,i,d})=>`<tr class="acum-row">
+  tbA.innerHTML=acumDiar.length?acumDiar.map(({a,i,d})=>`<tr class="acum-row">
     <td><span class="plate">${a.placa}</span></td>
     <td>${a.horaEntrada}<br><span class="mini">${a.fechaEntrada}</span></td>
-    <td><span class="badge badge-amber">${d.diasExtra} día${d.diasExtra!==1?'s':''}</span></td>
+    <td><span class="badge badge-amber">${d.diasExtra}d</span></td>
     <td>S/ ${a.precio.toFixed(2)}</td>
     <td class="red-txt">S/ ${d.deuda.toFixed(2)}</td>
     <td class="mini">${a.operador}</td>
@@ -493,17 +579,14 @@ function renderGaraje() {
       <button class="btn btn-danger btn-sm" onclick="registrarSalida(${i})">Salida</button>
       <button class="btn btn-warn btn-sm" onclick="abrirPago(${i})">Cobrar</button>
     </div></td>
-  </tr>`).join('') : '<tr><td colspan="7" class="empty">Sin acumulados</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="7" class="empty">Sin acumulados</td></tr>';
 
-  // Mensuales
+  // Mensuales (tab separado)
   const tbM=document.getElementById('tblMensual');
-  tbM.innerHTML=mensuales.length ? mensuales.map(({a,i,d})=>{
+  tbM.innerHTML=mensuales.length?mensuales.map(({a,i,d})=>{
     const fv=a.fechaVencimiento||'—';
     const dias=fv!=='—'?diasParaVencer(fv):99;
-    const estadoBadge=d.deuda>0?'badge-red':dias<=5?'badge-amber':'badge-green';
-    const diasTxt=d.deuda>0
-      ?`<span class="red-txt">Vencido +${d.diasExtra}d</span>`
-      :`<span class="green-txt">${dias} día${dias!==1?'s':''}</span>`;
+    const diasTxt=d.deuda>0?`<span class="red-txt">Vencido +${d.diasExtra}d</span>`:`<span class="green-txt">${dias}d</span>`;
     return `<tr class="${d.deuda>0?'venc-row':'ok-row'}">
       <td><span class="plate">${a.placa}</span></td>
       <td>${a.horaEntrada}<br><span class="mini">${a.fechaEntrada}</span></td>
@@ -517,74 +600,226 @@ function renderGaraje() {
         ${d.deuda>0?`<button class="btn btn-warn btn-sm" onclick="abrirPago(${i})">Cobrar</button>`:''}
       </div></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="8" class="empty">Sin mensuales registrados</td></tr>';
+  }).join(''):'<tr><td colspan="8" class="empty">Sin mensuales registrados</td></tr>';
 }
 
-function renderHistorial() {
-  const tb=document.getElementById('tblHistorial');
-  const items=historial.filter(h=>h.fechaSalida===fechaStr()).slice().reverse();
-  tb.innerHTML=items.length ? items.map(a=>`<tr>
-    <td><span class="plate">${a.placa}</span></td>
-    <td><span class="badge ${a.tarifa==='diario'?'badge-green':'badge-blue'}">${a.tarifa}</span></td>
-    <td>${a.horaEntrada}</td><td>${a.horaSalida}</td>
-    <td class="mini">${duracion(a.minutos||0)}</td>
-    <td>S/ ${parseFloat(a.precio).toFixed(2)}</td>
-    <td class="mini">${a.operador}</td>
-  </tr>`).join('') : '<tr><td colspan="7" class="empty">Sin salidas hoy</td></tr>';
+function renderAll(){
+  updateKPIs();renderGaraje();renderResumenDia();
 }
 
-function renderReporte() {
+// ── GERENCIA ─────────────────────────────────────────────────
+function abrirGerencia(){
+  document.getElementById('mgmtScreen').classList.add('open');
+  document.getElementById('lockScreen').style.display='flex';
+  document.getElementById('mgmtPanel').style.display='none';
+  document.getElementById('passInput').value='';
+}
+
+function cerrarGerencia(){
+  document.getElementById('mgmtScreen').classList.remove('open');
+}
+
+function verificarPass(){
+  const val=document.getElementById('passInput').value;
+  if(val===PASS_GERENCIA){
+    document.getElementById('lockScreen').style.display='none';
+    document.getElementById('mgmtPanel').style.display='block';
+    document.getElementById('mgmtFecha').textContent=hoyLong();
+    renderGerencia();
+  } else {
+    document.getElementById('alertLock').innerHTML='<div class="alert alert-error">Contraseña incorrecta</div>';
+    setTimeout(()=>{document.getElementById('alertLock').innerHTML='';},2500);
+  }
+}
+
+function renderGerencia(){
+  // KPIs mes
+  const todosDias=[...histDias];
+  // Agregar el día actual si tiene movimientos
+  const hoyStr=fechaStr();
+  const itemsHoy=historial.filter(h=>h.fechaSalida===hoyStr);
+  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
+
+  const totalMes=todosDias.reduce((s,d)=>s+d.total,0)+sumOf(itemsHoy);
+  const totalDiariosMes=todosDias.reduce((s,d)=>s+d.totalDiarios,0)+sumOf(itemsHoy.filter(h=>h.tarifa==='diario'));
+  const totalMensMes=todosDias.reduce((s,d)=>s+d.totalMensuales,0)+sumOf(itemsHoy.filter(h=>h.tarifa==='mensual'));
+  const diasConMovimiento=todosDias.length+(itemsHoy.length>0?1:0);
+
+  document.getElementById('monthKpis').innerHTML=`
+    <div class="month-kpi"><div class="month-kpi-label">Total del mes (S/)</div><div class="month-kpi-value g">${totalMes.toFixed(2)}</div></div>
+    <div class="month-kpi"><div class="month-kpi-label">Diarios mes (S/)</div><div class="month-kpi-value">${totalDiariosMes.toFixed(2)}</div></div>
+    <div class="month-kpi"><div class="month-kpi-label">Mensuales mes (S/)</div><div class="month-kpi-value">${totalMensMes.toFixed(2)}</div></div>
+    <div class="month-kpi"><div class="month-kpi-label">Días con movimiento</div><div class="month-kpi-value">${diasConMovimiento}</div></div>
+    <div class="month-kpi"><div class="month-kpi-label">Deuda total activa (S/)</div><div class="month-kpi-value r">${totalDeuda().toFixed(2)}</div></div>`;
+
+  // Resumen del día actual
+  const byOp={};
+  itemsHoy.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
+  const elHoy=document.getElementById('mgmtResumenHoy');
+  if(!itemsHoy.length){
+    elHoy.innerHTML='<div class="empty">Sin movimientos registrados hoy</div>';
+  } else {
+    elHoy.innerHTML=`
+      <div class="report-row"><span>Diarios (${itemsHoy.filter(h=>h.tarifa==='diario').length})</span><span>S/ ${sumOf(itemsHoy.filter(h=>h.tarifa==='diario')).toFixed(2)}</span></div>
+      <div class="report-row"><span>Mensuales (${itemsHoy.filter(h=>h.tarifa==='mensual').length})</span><span>S/ ${sumOf(itemsHoy.filter(h=>h.tarifa==='mensual')).toFixed(2)}</span></div>
+      <div class="report-row total"><span>TOTAL HOY</span><span>S/ ${sumOf(itemsHoy).toFixed(2)}</span></div>
+      <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
+        <div class="mini" style="font-weight:700;margin-bottom:6px">DETALLE SALIDAS DE HOY</div>
+        <div class="overflow-x"><table>
+          <thead><tr><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Precio</th><th>Operador</th></tr></thead>
+          <tbody>${itemsHoy.map(a=>`<tr>
+            <td><span class="plate">${a.placa}</span></td>
+            <td><span class="badge ${a.tarifa==='diario'?'badge-green':'badge-blue'}">${a.tarifa}</span></td>
+            <td>${a.horaEntrada}</td><td>${a.horaSalida}</td>
+            <td class="mini">${duracion(a.minutos||0)}</td>
+            <td>S/ ${parseFloat(a.precio).toFixed(2)}</td>
+            <td class="mini">${a.operador}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+      <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
+        ${Object.entries(byOp).map(([op,v])=>`<div class="report-row"><span class="mini">Operador: ${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join('')}
+      </div>`;
+  }
+
+  // Historial días anteriores
+  const elHist=document.getElementById('mgmtHistorial');
+  if(!histDias.length){
+    elHist.innerHTML='<div class="empty">Sin días exportados aún. Usa "Exportar y cerrar día" al final del día.</div>';
+  } else {
+    elHist.innerHTML=[...histDias].reverse().map((d,idx)=>`
+      <div class="history-day">
+        <div class="history-day-header" onclick="toggleDay(${histDias.length-1-idx})">
+          <span>${d.fecha}</span>
+          <span style="color:#0F6E56;font-weight:600">S/ ${d.total.toFixed(2)} · ${d.items.length} salidas</span>
+        </div>
+        <div class="history-day-body" id="hday-${histDias.length-1-idx}">
+          <div style="padding:.75rem 1rem">
+            <div class="report-row"><span class="mini">Diarios (${d.items.filter(h=>h.tarifa==='diario').length})</span><span class="mini">S/ ${d.totalDiarios.toFixed(2)}</span></div>
+            <div class="report-row"><span class="mini">Mensuales (${d.items.filter(h=>h.tarifa==='mensual').length})</span><span class="mini">S/ ${d.totalMensuales.toFixed(2)}</span></div>
+            ${d.byOp?Object.entries(d.byOp).map(([op,v])=>`<div class="report-row"><span class="mini">${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join(''):''}
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Snapshot de cierre (último día exportado)
+  const ultimoDia=histDias.length?histDias[histDias.length-1]:null;
+  const snapEl=document.getElementById('mgmtSnapshot');
+  const snapHoraEl=document.getElementById('snapHora');
+  if(ultimoDia&&ultimoDia.snapActivos&&ultimoDia.snapActivos.length){
+    snapHoraEl.textContent='Cierre del '+ultimoDia.fecha+' a las '+ultimoDia.snapHora;
+    const snap=ultimoDia.snapActivos;
+    const deudaSnap=snap.reduce((s,a)=>s+parseFloat(a.deuda||0),0);
+    snapEl.innerHTML=`
+      <div style="display:flex;gap:10px;margin-bottom:.875rem;flex-wrap:wrap">
+        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Quedaron dentro</div><div class="month-kpi-value g">${snap.length}</div></div>
+        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Diarios que quedan</div><div class="month-kpi-value">${snap.filter(a=>a.tarifa==='diario').length}</div></div>
+        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Mensuales vigentes</div><div class="month-kpi-value">${snap.filter(a=>a.tarifa==='mensual').length}</div></div>
+        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Deuda al cierre (S/)</div><div class="month-kpi-value r">${deudaSnap.toFixed(2)}</div></div>
+      </div>
+      <div class="overflow-x"><table>
+        <thead><tr><th>Placa</th><th>Tipo</th><th>Entró</th><th>Tiempo en garaje</th><th>Precio</th><th>Deuda al cierre</th><th>Pasa al día siguiente</th></tr></thead>
+        <tbody>${snap.map(a=>`<tr class="${a.deuda>0?'acum-row':'ok-row'}">
+          <td><span class="plate">${a.placa}</span></td>
+          <td><span class="badge ${a.tarifa==='diario'?'badge-amber':'badge-blue'}">${a.tarifa}</span></td>
+          <td>${a.horaEntrada} ${a.fechaEntrada}</td>
+          <td class="mini">${duracion(a.tiempoMin||0)}</td>
+          <td>S/ ${parseFloat(a.precio).toFixed(2)}</td>
+          <td>${a.deuda>0?`<span class="red-txt">S/ ${a.deuda.toFixed(2)}</span>`:'<span class="green-txt">—</span>'}</td>
+          <td><span class="badge ${a.tarifa==='mensual'?'badge-green':'badge-amber'}">${a.tarifa==='mensual'?'Sin costo add.':'Acumula deuda'}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } else if(ultimoDia&&ultimoDia.snapTotal===0){
+    snapHoraEl.textContent='Cierre del '+ultimoDia.fecha+' a las '+(ultimoDia.snapHora||'');
+    snapEl.innerHTML='<div class="empty" style="color:#0F6E56">Garaje vacío al cierre — ningún vehículo quedó dentro</div>';
+  } else {
+    snapHoraEl.textContent='';
+    snapEl.innerHTML='<div class="empty">Exporta el día para ver el snapshot de cierre</div>';
+  }
+
+  // Mensuales gerencia
+  const mensActivos=activos.filter(a=>a.tarifa==='mensual');
+  const tbMG=document.getElementById('mgmtMensuales');
+  tbMG.innerHTML=mensActivos.length?mensActivos.map(a=>{
+    const d=infoDeuda(a);
+    const fv=a.fechaVencimiento||'—';
+    const dias=fv!=='—'?diasParaVencer(fv):99;
+    const diasTxt=d.deuda>0?`<span class="red-txt">Vencido +${d.diasExtra}d</span>`:`<span class="green-txt">${dias}d</span>`;
+    return `<tr class="${d.deuda>0?'venc-row':'ok-row'}">
+      <td><span class="plate">${a.placa}</span></td>
+      <td>${a.horaEntrada} ${a.fechaEntrada}</td>
+      <td style="font-weight:600">${fv}</td>
+      <td>${diasTxt}</td>
+      <td>S/ ${a.precio.toFixed(2)}</td>
+      <td>${d.deuda>0?`<span class="red-txt">S/ ${d.deuda.toFixed(2)}</span>`:'<span class="green-txt">—</span>'}</td>
+      <td class="mini">${a.operador}</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="7" class="empty">Sin mensuales</td></tr>';
+}
+
+function toggleDay(idx){
+  const el=document.getElementById('hday-'+idx);
+  if(el) el.classList.toggle('open');
+}
+
+// ── EXPORTAR Y CERRAR DÍA ────────────────────────────────────
+async function exportarYReiniciar(){
   const hoyStr=fechaStr();
   const items=historial.filter(h=>h.fechaSalida===hoyStr);
-  const diarios=items.filter(h=>h.tarifa==='diario');
-  const mens=items.filter(h=>h.tarifa==='mensual');
+  if(!items.length){alert('No hay movimientos del día para exportar.');return;}
   const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
   const byOp={};
   items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
-  document.getElementById('reporteContenido').innerHTML=`
-    <div class="report-row"><span>Diarios atendidos (${diarios.length})</span><span>S/ ${sumOf(diarios).toFixed(2)}</span></div>
-    <div class="report-row"><span>Mensuales atendidos (${mens.length})</span><span>S/ ${sumOf(mens).toFixed(2)}</span></div>
-    <div class="report-row total"><span>TOTAL HOY</span><span>S/ ${sumOf(items).toFixed(2)}</span></div>
-    <div style="margin-top:.875rem;padding-top:.875rem;border-top:1px solid #e0dfd8">
-      <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Por operador</div>
-      ${Object.entries(byOp).map(([op,v])=>`<div class="report-row"><span>${op}</span><span>S/ ${v.toFixed(2)}</span></div>`).join('')}
-    </div>
-    <div style="margin-top:.875rem;padding-top:.875rem;border-top:1px solid #e0dfd8">
-      <div class="report-row"><span>En garaje ahora</span><span>${activos.length}</span></div>
-      <div class="report-row"><span>Disponibles</span><span>${Math.max(0,MAX()-activos.length)}</span></div>
-      <div class="report-row" style="color:#993C1D"><span>Deuda pendiente total</span><span>S/ ${totalDeuda().toFixed(2)}</span></div>
-    </div>`;
+
+  // Snapshot de quién queda al cerrar
+  const snapActivos=activos.map(a=>({
+    placa:a.placa,
+    tarifa:a.tarifa,
+    horaEntrada:a.horaEntrada,
+    fechaEntrada:a.fechaEntrada,
+    operador:a.operador,
+    fechaVencimiento:a.fechaVencimiento||'',
+    precio:a.precio,
+    tiempoMin:difMin(a.ts),
+    deuda:infoDeuda(a).deuda
+  }));
+  const snapHora=horaStr();
+
+  // Guardar en histDias
+  const diaResumen={
+    fecha:hoyStr,
+    items,
+    totalDiarios:sumOf(items.filter(h=>h.tarifa==='diario')),
+    totalMensuales:sumOf(items.filter(h=>h.tarifa==='mensual')),
+    total:sumOf(items),
+    byOp,
+    snapActivos,
+    snapHora,
+    snapTotal:activos.length
+  };
+  // Evitar duplicar el mismo día
+  histDias=histDias.filter(d=>d.fecha!==hoyStr);
+  histDias.push(diaResumen);
+
+  // Reiniciar historial del día (mantener solo los que NO son de hoy)
+  historial=historial.filter(h=>h.fechaSalida!==hoyStr);
+  save();
+
+  // Enviar a Sheets
+  setSyncState('loading','Exportando...');
+  try {
+    await fetch(WEBURL(),{method:'POST',mode:'no-cors',body:JSON.stringify({tipo:'reporte_diario',fecha:hoyStr,items,activos,total:diaResumen.total,totalDiarios:diaResumen.totalDiarios,totalMensuales:diaResumen.totalMensuales})});
+    setSyncState('ok','Exportado');
+  } catch(e){setSyncState('error','Error al exportar');}
+
+  renderAll();
+  renderGerencia();
+  alert('Día exportado y reiniciado correctamente.\n\nEl historial del día quedó guardado en "Historial por día".');
 }
 
-function renderAll() {
-  updateKPIs(); renderGaraje(); renderHistorial();
-  if(document.getElementById('tab-reporte').classList.contains('active')) renderReporte();
-}
-
-// ── CONFIG ───────────────────────────────────────────
-function guardarConfig() {
-  const url=document.getElementById('webAppUrl')?.value.trim()||'';
-  const sid=document.getElementById('sheetId')?.value.trim()||'';
-  const cap=document.getElementById('capacidad')?.value||'';
-  const td=document.getElementById('tDiario')?.value||'';
-  const tm=document.getElementById('tMensual')?.value||'';
-  if(url) localStorage.setItem('pk_url',url);
-  if(sid) localStorage.setItem('pk_sid',sid);
-  if(cap) localStorage.setItem('pk_cap',cap);
-  if(td)  localStorage.setItem('pk_tDiario',td);
-  if(tm)  localStorage.setItem('pk_tMensual',tm);
-  const opts=document.getElementById('tarifa').options;
-  if(td) opts[0].text='Diario — S/ '+parseFloat(td).toFixed(2);
-  if(tm) opts[1].text='Mensual — S/ '+parseFloat(tm).toFixed(2);
-}
-
-function cargarConfig() {
-  const map={webAppUrl:localStorage.getItem('pk_url')||WEB_APP_DEFAULT,sheetId:localStorage.getItem('pk_sid')||SHEET_ID_DEFAULT,capacidad:localStorage.getItem('pk_cap')||'50',tDiario:localStorage.getItem('pk_tDiario')||'5',tMensual:localStorage.getItem('pk_tMensual')||'100'};
-  Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val;});
-}
-
-// ── SYNC ─────────────────────────────────────────────
-function leerSheetPublico(sid) {
+// ── SYNC ─────────────────────────────────────────────────────
+function leerSheetPublico(sid){
   return new Promise((resolve,reject)=>{
     const url='https://docs.google.com/spreadsheets/d/'+sid+'/gviz/tq?tqx=out:json&tq=select+*&gid=0';
     const timeout=setTimeout(()=>{if(script.parentNode)script.parentNode.removeChild(script);reject(new Error('timeout'));},10000);
@@ -599,13 +834,31 @@ function leerSheetPublico(sid) {
   });
 }
 
-function parsearGviz(resp) {
+function parsearGviz(resp){
   if(!resp||!resp.table) return [];
   const cols=resp.table.cols.map(c=>c.label);
-  return (resp.table.rows||[]).map(row=>{const obj={};row.c.forEach((cell,i)=>{obj[cols[i]]=cell?cell.v:'';});return obj;});
+  return (resp.table.rows||[]).map(row=>{
+    const obj={};
+    row.c.forEach((cell,i)=>{
+      if(!cell||cell.v===null||cell.v===undefined){obj[cols[i]]='';return;}
+      const v=cell.v;
+      if(typeof v==='string'&&v.startsWith('Date(')){
+        const parts=v.replace('Date(','').replace(')','').split(',').map(Number);
+        const d=new Date(parts[0],parts[1],parts[2]||1,parts[3]||0,parts[4]||0,parts[5]||0);
+        if(cols[i]==='Fecha'||cols[i]==='Fecha de vencimiento'||cols[i]==='Fecha Compromiso'){
+          obj[cols[i]]=d.toLocaleDateString('es-PE');
+        } else if(cols[i]==='Entrada'||cols[i]==='Salida'){
+          obj[cols[i]]=d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+        } else {
+          obj[cols[i]]=d.toLocaleDateString('es-PE');
+        }
+      } else { obj[cols[i]]=v; }
+    });
+    return obj;
+  });
 }
 
-async function sincronizarDesdeSheets() {
+async function sincronizarDesdeSheets(){
   setSyncState('loading','Leyendo Sheets...');
   try {
     const resp=await leerSheetPublico(SID());
@@ -625,40 +878,60 @@ async function sincronizarDesdeSheets() {
         ts:parsearTs(r['Fecha']||'',r['Entrada']||'')
       }))
       .filter(r=>r.placa);
-    save(); renderAll();
+    save();renderAll();
     setSyncState('ok','Datos cargados');
     alert_('alertConfig','Cargados '+activos.length+' vehículos desde Sheets','success');
-  } catch(e) {
+  } catch(e){
     setSyncState('error','Error');
     alert_('alertConfig','No se pudo leer la hoja. Verifica que esté compartida como Lector.','error');
   }
 }
 
-async function probarConexion() {
+async function probarConexion(){
   const sid=document.getElementById('sheetId')?.value.trim()||SID();
   setSyncState('loading','Probando...');
   try {
     const resp=await leerSheetPublico(sid);
     if(resp&&resp.table){localStorage.setItem('pk_sid',sid);setSyncState('ok','Conectado');alert_('alertConfig','Conexión exitosa','success');}
     else throw new Error('sin tabla');
-  } catch(e){setSyncState('error','Sin conexión');alert_('alertConfig','No se pudo conectar. Verifica el ID y permisos.','error');}
+  } catch(e){setSyncState('error','Sin conexión');alert_('alertConfig','No se pudo conectar.','error');}
 }
 
-async function enviarASheets(tipo,data) {
-  const url=WEBURL(); if(!url) return;
+async function enviarASheets(tipo,data){
+  const url=WEBURL();if(!url)return;
   setSyncState('loading','Enviando...');
   try {await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({tipo,...data})});setSyncState('ok','Sincronizado');}
   catch(e){setSyncState('error','Error');}
 }
 
-async function exportarReporte() {
-  const hoyStr=fechaStr();
-  const items=historial.filter(h=>h.fechaSalida===hoyStr);
-  setSyncState('loading','Exportando...');
-  try {
-    await fetch(WEBURL(),{method:'POST',mode:'no-cors',body:JSON.stringify({tipo:'reporte_diario',fecha:hoyStr,items,activos})});
-    setSyncState('ok','Exportado');alert_('alertForm','Reporte exportado a Google Sheets','success');
-  } catch(e){setSyncState('error','Error');}
+// ── CONFIG ───────────────────────────────────────────────────
+function guardarConfig(){
+  const url=document.getElementById('webAppUrl')?.value.trim()||'';
+  const sid=document.getElementById('sheetId')?.value.trim()||'';
+  const cap=document.getElementById('capacidad')?.value||'';
+  const td=document.getElementById('tDiario')?.value||'';
+  const tm=document.getElementById('tMensual')?.value||'';
+  if(url) localStorage.setItem('pk_url',url);
+  if(sid) localStorage.setItem('pk_sid',sid);
+  if(cap) localStorage.setItem('pk_cap',cap);
+  if(td)  localStorage.setItem('pk_tDiario',td);
+  if(tm)  localStorage.setItem('pk_tMensual',tm);
+  const opts=document.getElementById('tarifa').options;
+  if(td) opts[0].text='Diario — S/ '+parseFloat(td).toFixed(2);
+  if(tm) opts[1].text='Mensual — S/ '+parseFloat(tm).toFixed(2);
+}
+
+function cargarConfig(){
+  const map={webAppUrl:localStorage.getItem('pk_url')||WEB_APP_DEFAULT,sheetId:localStorage.getItem('pk_sid')||SHEET_ID_DEFAULT,capacidad:localStorage.getItem('pk_cap')||'50',tDiario:localStorage.getItem('pk_tDiario')||'5',tMensual:localStorage.getItem('pk_tMensual')||'100'};
+  Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val;});
+}
+
+function showTab(name,event){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+  if(name==='config') cargarConfig();
 }
 
 function alert_(elId,msg,type){
@@ -674,20 +947,8 @@ function setSyncState(state,text){
   if(state==='ok') setTimeout(()=>{txt.textContent='Conectado';},3000);
 }
 
-function showTab(name,event){
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  event.target.classList.add('active');
-  if(name==='config') cargarConfig();
-  if(name==='reporte') renderReporte();
-}
-
 function descargarScript(){
-  const code=`// GARAJE — Apps Script v2
-// Hoja: GARAGE
-// Columnas: Fecha|Placa|Tipo Tarifa|Precio|Entrada|Salida|Pagado|Operador|Fecha de vencimiento|Fecha Compromiso|Estado|Deuda Acumulada|Eliminado
-
+  const code=`// GARAJE — Apps Script v3
 const SHEET_ID = '175PXAW8nbbRDcltZEl9oiMJOX8SjzItGa58UvWPZizY';
 const SHEET_REGISTROS = 'GARAGE';
 const SHEET_REPORTE   = 'REPORTE_DIARIO';
@@ -704,8 +965,8 @@ function doGet(e) {
       const activos = [];
       for (let i = 1; i < data.length; i++) {
         const r = data[i];
-        const sinSalida   = r[5] === '' || r[5] === null || r[5] === undefined;
-        const noEliminado = r[12] !== 'SÍ' && r[12] !== 'SI';
+        const sinSalida = r[5]===''||r[5]===null||r[5]===undefined;
+        const noEliminado = r[12]!=='SÍ'&&r[12]!=='SI';
         if (sinSalida && r[1] && String(r[1]).trim() && noEliminado) {
           activos.push({
             placa: String(r[1]).trim(),
@@ -714,7 +975,6 @@ function doGet(e) {
             horaEntrada: r[4]||'',
             fechaEntrada: r[0] ? Utilities.formatDate(new Date(r[0]),'America/Lima','dd/MM/yyyy') : '',
             operador: r[7]||'',
-            pagado: r[6]||'NO',
             fechaVencimiento: r[8] ? Utilities.formatDate(new Date(r[8]),'America/Lima','dd/MM/yyyy') : '',
             estado: r[10]||'',
             deudaAcumulada: parseFloat(r[11])||0
@@ -733,19 +993,17 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.tipo === 'entrada') {
       const sh = getSheet(SHEET_REGISTROS);
-      sh.appendRow([data.fechaEntrada, data.placa, data.tarifa, data.precio,
-        data.horaEntrada, '', 'NO', data.operador, data.fechaVencimiento||'', '', '', 0, 'NO']);
+      sh.appendRow([data.fechaEntrada,data.placa,data.tarifa,data.precio,data.horaEntrada,'','NO',data.operador,data.fechaVencimiento||'','','',0,'NO']);
       return jsonResp({ ok: true }, null);
     }
     if (data.tipo === 'salida') {
       const sh = getSheet(SHEET_REGISTROS);
       const rows = sh.getDataRange().getValues();
       for (let i = rows.length-1; i >= 1; i--) {
-        const sinSalida = rows[i][5]===''||rows[i][5]===null||rows[i][5]===undefined;
-        if (String(rows[i][1]).trim()===data.placa && sinSalida) {
+        if (String(rows[i][1]).trim()===data.placa && (rows[i][5]===''||rows[i][5]===null||rows[i][5]===undefined)) {
           sh.getRange(i+1,6).setValue(data.horaSalida);
           sh.getRange(i+1,7).setValue('SÍ');
-          if (data.deudaFinal>0) { sh.getRange(i+1,11).setValue('Con deuda'); sh.getRange(i+1,12).setValue(data.deudaFinal); }
+          if (data.deudaFinal>0){sh.getRange(i+1,11).setValue('Con deuda');sh.getRange(i+1,12).setValue(data.deudaFinal);}
           break;
         }
       }
@@ -765,10 +1023,9 @@ function doPost(e) {
       return jsonResp({ ok: true }, null);
     }
     if (data.tipo === 'reporte_diario') {
-      const sh = getSheet(SHEET_REPORTE, ['Fecha','Atendidos','Total S/','En garaje','Deuda S/','Operadores']);
-      const total = (data.items||[]).reduce((s,h)=>s+parseFloat(h.precio||0),0);
+      const sh = getSheet(SHEET_REPORTE, ['Fecha','Atendidos','Total S/','Diarios S/','Mensuales S/','En garaje','Operadores']);
       const ops = [...new Set((data.items||[]).map(h=>h.operador))].join(', ');
-      sh.appendRow([data.fecha,(data.items||[]).length,total.toFixed(2),(data.activos||[]).length,'',ops]);
+      sh.appendRow([data.fecha,(data.items||[]).length,parseFloat(data.total||0).toFixed(2),parseFloat(data.totalDiarios||0).toFixed(2),parseFloat(data.totalMensuales||0).toFixed(2),(data.activos||[]).length,ops]);
       return jsonResp({ ok: true }, null);
     }
     return jsonResp({ ok: false, error: 'Tipo desconocido' }, null);
@@ -801,7 +1058,7 @@ function jsonResp(obj, cb) {
   alert_('alertConfig','Descargado: garage_apps_script.gs','success');
 }
 
-// ── INIT ─────────────────────────────────────────────
+// ── INIT ─────────────────────────────────────────────────────
 document.getElementById('fechaHoy').textContent=hoyLong();
 if(!localStorage.getItem('pk_sid')) localStorage.setItem('pk_sid',SHEET_ID_DEFAULT);
 if(!localStorage.getItem('pk_url')) localStorage.setItem('pk_url',WEB_APP_DEFAULT);
