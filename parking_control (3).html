@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Estacionamiento</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f3f0;color:#1a1a18;min-height:100vh;font-size:15px}
+.app{max-width:960px;margin:0 auto;padding:1.25rem}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid #e0dfd8}
+.header-title{font-size:18px;font-weight:600;color:#1a1a18}
+.header-sub{font-size:12px;color:#888780;margin-top:2px}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#5DCAA5;display:inline-block;margin-right:5px}
+.sync-dot.error{background:#F0997B}
+.sync-dot.loading{background:#EF9F27;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.sync-status{font-size:12px;color:#888780;display:flex;align-items:center}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
+.kpi{background:#e8e7e0;border-radius:8px;padding:.75rem 1rem}
+.kpi-label{font-size:11px;color:#5F5E5A;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.kpi-value{font-size:24px;font-weight:600}
+.kpi-value.green{color:#0F6E56}
+.kpi-value.blue{color:#185FA5}
+.kpi-value.amber{color:#633806}
+.main{display:grid;grid-template-columns:320px 1fr;gap:1rem;align-items:start}
+.card{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:1rem 1.25rem}
+.card-title{font-size:13px;font-weight:600;margin-bottom:.875rem;padding-bottom:.5rem;border-bottom:1px solid #e0dfd8;color:#444441;text-transform:uppercase;letter-spacing:.4px}
+.form-group{margin-bottom:.7rem}
+.form-group label{display:block;font-size:12px;color:#5F5E5A;margin-bottom:3px}
+input,select{width:100%;padding:8px 10px;font-size:14px;border:1px solid #e0dfd8;border-radius:7px;background:#fff;color:#1a1a18;font-family:inherit;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:#888780}
+input[type=text]{text-transform:uppercase}
+.btn{width:100%;padding:9px;font-size:13px;font-weight:500;border-radius:8px;border:1px solid #d3d1c7;background:#fff;color:#1a1a18;cursor:pointer;font-family:inherit;transition:background .15s,transform .1s}
+.btn:hover{background:#f4f3f0}
+.btn:active{transform:scale(0.98)}
+.btn-primary{background:#0F6E56;color:#E1F5EE;border-color:#0F6E56}
+.btn-primary:hover{background:#085041}
+.btn-danger{background:#993C1D;color:#FAECE7;border-color:#993C1D;margin-top:5px}
+.btn-danger:hover{background:#712B13}
+.btn-sm{width:auto;padding:4px 11px;font-size:12px}
+.btn-outline{background:#fff;border-color:#d3d1c7;margin-top:5px}
+.search-row{display:flex;gap:8px;margin-bottom:.5rem}
+.search-row input{flex:1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:600;color:#888780;padding:6px 8px;border-bottom:1px solid #e0dfd8;text-transform:uppercase;letter-spacing:.3px}
+td{padding:7px 8px;border-bottom:1px solid #f4f3f0;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
+.badge-green{background:#E1F5EE;color:#0F6E56}
+.badge-amber{background:#FAEEDA;color:#633806}
+.badge-blue{background:#E6F1FB;color:#185FA5}
+.badge-red{background:#FAECE7;color:#993C1D}
+.plate{font-family:'Courier New',monospace;font-size:12px;font-weight:700;letter-spacing:.5px;background:#f4f3f0;padding:2px 6px;border-radius:4px}
+.tabs{display:flex;gap:4px;margin-bottom:.875rem}
+.tab{padding:6px 14px;font-size:13px;border:1px solid #e0dfd8;border-radius:8px;cursor:pointer;background:#f4f3f0;color:#888780;font-family:inherit;transition:background .12s}
+.tab.active{background:#fff;color:#1a1a18;border-color:#d3d1c7;font-weight:500}
+.panel{display:none}
+.panel.active{display:block}
+.config-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f4f3f0;font-size:13px}
+.config-row:last-child{border-bottom:none}
+.config-label{color:#5F5E5A;font-size:12px}
+.alert{padding:8px 12px;border-radius:7px;font-size:13px;margin-bottom:.75rem}
+.alert-success{background:#E1F5EE;color:#085041;border:1px solid #9FE1CB}
+.alert-error{background:#FAECE7;color:#712B13;border:1px solid #F0997B}
+.alert-warn{background:#FAEEDA;color:#633806;border:1px solid #FAC775}
+.empty{text-align:center;padding:2rem;color:#888780;font-size:13px}
+.report-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f4f3f0;font-size:13px}
+.report-row:last-child{border-bottom:none}
+.report-row.total{font-weight:600;font-size:14px;padding-top:10px;border-top:2px solid #e0dfd8;border-bottom:none;margin-top:4px}
+.duration{font-size:11px;color:#888780}
+.overflow-x{overflow-x:auto}
+.divider{margin:1rem 0;border:none;border-top:1px solid #e0dfd8}
+code{font-family:'Courier New',monospace;font-size:11px;background:#f4f3f0;padding:2px 6px;border-radius:4px;color:#5F5E5A;display:block;word-break:break-all;margin-top:4px}
+.op-tag{font-size:11px;color:#888780}
+.header-right{display:flex;align-items:center;gap:10px}
+select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div>
+      <div class="header-title">Control de Estacionamiento</div>
+      <div class="header-sub" id="fechaHoy"></div>
+    </div>
+    <div class="header-right">
+      <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncText">Desconectado</span></div>
+      <select id="operatorGlobal">
+        <option value="Susy">Susy</option>
+        <option value="Frank">Frank</option>
+        <option value="Domingo">Domingo</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-label">Dentro ahora</div><div class="kpi-value green" id="kpiDentro">0</div></div>
+    <div class="kpi"><div class="kpi-label">Disponibles</div><div class="kpi-value blue" id="kpiDisp">50</div></div>
+    <div class="kpi"><div class="kpi-label">Salidas hoy</div><div class="kpi-value amber" id="kpiSalidas">0</div></div>
+    <div class="kpi"><div class="kpi-label">Ingresos hoy (S/)</div><div class="kpi-value" id="kpiIngresos">0.00</div></div>
+  </div>
+
+  <div class="main">
+    <!-- Panel izquierdo -->
+    <div>
+      <div class="card">
+        <div class="card-title">Registrar entrada</div>
+        <div id="alertForm"></div>
+        <div class="form-group">
+          <label>Placa del vehículo</label>
+          <input type="text" id="plate" placeholder="ABC-123" maxlength="8">
+        </div>
+        <div class="form-group">
+          <label>Tipo de tarifa</label>
+          <select id="tarifa" onchange="updatePrice()">
+            <option value="diario" data-price="5">Diario — S/ 5.00</option>
+            <option value="semanal" data-price="25">Semanal — S/ 25.00</option>
+            <option value="mensual" data-price="100">Mensual — S/ 100.00</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Precio (S/)</label>
+          <input type="number" id="precio" value="5" step="0.50" min="0">
+        </div>
+        <div class="form-group">
+          <label>Observación (opcional)</label>
+          <input type="text" id="obs" placeholder="Ej: cliente frecuente" style="text-transform:none">
+        </div>
+        <button class="btn btn-primary" onclick="registrarEntrada()">Registrar entrada</button>
+      </div>
+
+      <div class="card" style="margin-top:1rem">
+        <div class="card-title">Registrar salida</div>
+        <div class="search-row">
+          <input type="text" id="plateExit" placeholder="Buscar por placa..." oninput="buscarPlaca(this.value)">
+        </div>
+        <div id="exitResults"></div>
+      </div>
+    </div>
+
+    <!-- Panel derecho -->
+    <div>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('activos',event)">En garaje</button>
+        <button class="tab" onclick="showTab('historial',event)">Historial hoy</button>
+        <button class="tab" onclick="showTab('reporte',event)">Reporte</button>
+        <button class="tab" onclick="showTab('config',event)">Config</button>
+      </div>
+
+      <div id="tab-activos" class="panel active">
+        <div class="card">
+          <div class="overflow-x">
+            <table>
+              <thead><tr><th>Placa</th><th>Tarifa</th><th>Entrada</th><th>Tiempo</th><th>Precio</th><th>Operador</th><th></th></tr></thead>
+              <tbody id="tablaActivos"><tr><td colspan="7" class="empty">No hay vehículos en el garaje</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-historial" class="panel">
+        <div class="card">
+          <div class="overflow-x">
+            <table>
+              <thead><tr><th>Placa</th><th>Tarifa</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Precio</th><th>Operador</th></tr></thead>
+              <tbody id="tablaHistorial"><tr><td colspan="7" class="empty">Sin salidas registradas hoy</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-reporte" class="panel">
+        <div class="card">
+          <div class="card-title">Resumen del día</div>
+          <div id="reporteContenido"></div>
+          <hr class="divider">
+          <button class="btn" onclick="exportarReporte()">Exportar reporte a Google Sheets</button>
+        </div>
+      </div>
+
+      <div id="tab-config" class="panel">
+        <div class="card">
+          <div class="card-title">Conexión con Google Sheets</div>
+          <div id="alertConfig"></div>
+          <div class="form-group">
+            <label>ID de Google Sheet (para leer datos)</label>
+            <input type="text" id="sheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" oninput="guardarConfig()" style="text-transform:none">
+            <div style="font-size:11px;color:#888780;margin-top:3px">La hoja debe estar compartida como <strong>Lector para cualquiera con el enlace</strong></div>
+          </div>
+          <div class="form-group">
+            <label>URL del Web App (Apps Script) — para registrar entradas/salidas</label>
+            <input type="text" id="webAppUrl" placeholder="https://script.google.com/macros/s/..." oninput="guardarConfig()" style="text-transform:none">
+          </div>
+          <button class="btn btn-primary" onclick="probarConexion()">Probar conexión</button>
+          <button class="btn btn-outline" onclick="sincronizarDesdeSheets()">Cargar datos desde Sheets</button>
+
+          <hr class="divider">
+          <div class="card-title">Capacidad y tarifas</div>
+          <div class="config-row">
+            <span class="config-label">Capacidad máxima</span>
+            <input type="number" id="capacidad" value="50" min="1" style="width:80px;text-align:right" oninput="guardarConfig()">
+          </div>
+          <div class="config-row">
+            <span class="config-label">Diario (S/)</span>
+            <input type="number" id="tDiario" value="5" step="0.50" style="width:80px;text-align:right" oninput="guardarConfig()">
+          </div>
+          <div class="config-row">
+            <span class="config-label">Semanal (S/)</span>
+            <input type="number" id="tSemanal" value="25" step="0.50" style="width:80px;text-align:right" oninput="guardarConfig()">
+          </div>
+          <div class="config-row">
+            <span class="config-label">Mensual (S/)</span>
+            <input type="number" id="tMensual" value="100" step="0.50" style="width:80px;text-align:right" oninput="guardarConfig()">
+          </div>
+
+          <hr class="divider">
+          <div class="card-title">Apps Script — código</div>
+          <p style="font-size:12px;color:#5F5E5A;margin-bottom:.5rem">Descarga el archivo .gs, pégalo en tu Google Sheet (Extensiones → Apps Script), cambia el SHEET_ID, y despliega como Web App.</p>
+          <button class="btn" onclick="descargarScript()">Descargar código Apps Script (.gs)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MAX = () => parseInt(localStorage.getItem('pk_cap') || '50');
+const WEBURL = () => localStorage.getItem('pk_url') || '';
+
+let activos = JSON.parse(localStorage.getItem('pk_activos') || '[]');
+let historial = JSON.parse(localStorage.getItem('pk_hist') || '[]');
+
+function save() {
+  localStorage.setItem('pk_activos', JSON.stringify(activos));
+  localStorage.setItem('pk_hist', JSON.stringify(historial));
+}
+
+function hoy() {
+  return new Date().toLocaleDateString('es-PE', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+}
+function horaStr() {
+  return new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
+}
+function fechaStr() {
+  return new Date().toLocaleDateString('es-PE');
+}
+function difMin(desde) {
+  return Math.floor((Date.now() - desde) / 60000);
+}
+function duracion(min) {
+  if (min < 60) return min + 'm';
+  return Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+}
+
+document.getElementById('fechaHoy').textContent = hoy();
+
+function updatePrice() {
+  const sel = document.getElementById('tarifa');
+  const val = sel.value;
+  const cfg = {
+    diario: parseFloat(localStorage.getItem('pk_tDiario') || '5'),
+    semanal: parseFloat(localStorage.getItem('pk_tSemanal') || '25'),
+    mensual: parseFloat(localStorage.getItem('pk_tMensual') || '100')
+  };
+  document.getElementById('precio').value = cfg[val];
+}
+
+function guardarConfig() {
+  const url = document.getElementById('webAppUrl') ? document.getElementById('webAppUrl').value.trim() : '';
+  const sid = document.getElementById('sheetId') ? document.getElementById('sheetId').value.trim() : '';
+  const cap = document.getElementById('capacidad') ? document.getElementById('capacidad').value : '';
+  const td = document.getElementById('tDiario') ? document.getElementById('tDiario').value : '';
+  const ts = document.getElementById('tSemanal') ? document.getElementById('tSemanal').value : '';
+  const tm = document.getElementById('tMensual') ? document.getElementById('tMensual').value : '';
+  if (url) localStorage.setItem('pk_url', url);
+  if (sid) localStorage.setItem('pk_sid', sid);
+  if (cap) localStorage.setItem('pk_cap', cap);
+  if (td) localStorage.setItem('pk_tDiario', td);
+  if (ts) localStorage.setItem('pk_tSemanal', ts);
+  if (tm) localStorage.setItem('pk_tMensual', tm);
+  const opts = document.getElementById('tarifa').options;
+  if (td) opts[0].text = 'Diario — S/ ' + parseFloat(td).toFixed(2);
+  if (ts) opts[1].text = 'Semanal — S/ ' + parseFloat(ts).toFixed(2);
+  if (tm) opts[2].text = 'Mensual — S/ ' + parseFloat(tm).toFixed(2);
+}
+
+function cargarConfig() {
+  const fields = {
+    webAppUrl: localStorage.getItem('pk_url') || '',
+    sheetId: localStorage.getItem('pk_sid') || '',
+    capacidad: localStorage.getItem('pk_cap') || '50',
+    tDiario: localStorage.getItem('pk_tDiario') || '5',
+    tSemanal: localStorage.getItem('pk_tSemanal') || '25',
+    tMensual: localStorage.getItem('pk_tMensual') || '100'
+  };
+  Object.entries(fields).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+}
+
+function alert_(elId, msg, type) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = '<div class="alert alert-' + type + '">' + msg + '</div>';
+  setTimeout(() => { if (el) el.innerHTML = ''; }, 4500);
+}
+
+function updateKPIs() {
+  const dentro = activos.length;
+  const disp = Math.max(0, MAX() - dentro);
+  const hoyStr = fechaStr();
+  const salidashoy = historial.filter(h => h.fechaSalida === hoyStr);
+  const ingresos = salidashoy.reduce((s, h) => s + parseFloat(h.precio || 0), 0);
+  document.getElementById('kpiDentro').textContent = dentro;
+  document.getElementById('kpiDisp').textContent = disp;
+  document.getElementById('kpiSalidas').textContent = salidashoy.length;
+  document.getElementById('kpiIngresos').textContent = ingresos.toFixed(2);
+}
+
+function badgeClass(tarifa) {
+  return tarifa === 'diario' ? 'badge-green' : tarifa === 'semanal' ? 'badge-blue' : 'badge-amber';
+}
+
+function renderActivos() {
+  const tb = document.getElementById('tablaActivos');
+  if (!activos.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="empty">No hay vehículos en el garaje</td></tr>';
+    return;
+  }
+  tb.innerHTML = activos.map((a, i) => {
+    const min = difMin(a.ts);
+    return `<tr>
+      <td><span class="plate">${a.placa}</span></td>
+      <td><span class="badge ${badgeClass(a.tarifa)}">${a.tarifa}</span></td>
+      <td>${a.horaEntrada}</td>
+      <td class="duration">${duracion(min)}</td>
+      <td>S/ ${parseFloat(a.precio).toFixed(2)}</td>
+      <td class="op-tag">${a.operador}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="registrarSalida(${i})">Salida</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderHistorial() {
+  const tb = document.getElementById('tablaHistorial');
+  const hoyStr = fechaStr();
+  const items = historial.filter(h => h.fechaSalida === hoyStr).slice().reverse();
+  if (!items.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="empty">Sin salidas registradas hoy</td></tr>';
+    return;
+  }
+  tb.innerHTML = items.map(a => `<tr>
+    <td><span class="plate">${a.placa}</span></td>
+    <td><span class="badge ${badgeClass(a.tarifa)}">${a.tarifa}</span></td>
+    <td>${a.horaEntrada}</td>
+    <td>${a.horaSalida}</td>
+    <td class="duration">${duracion(a.minutos || 0)}</td>
+    <td>S/ ${parseFloat(a.precio).toFixed(2)}</td>
+    <td class="op-tag">${a.operador}</td>
+  </tr>`).join('');
+}
+
+function renderReporte() {
+  const hoyStr = fechaStr();
+  const items = historial.filter(h => h.fechaSalida === hoyStr);
+  const diarios = items.filter(h => h.tarifa === 'diario');
+  const semanales = items.filter(h => h.tarifa === 'semanal');
+  const mensuales = items.filter(h => h.tarifa === 'mensual');
+  const total = items.reduce((s, h) => s + parseFloat(h.precio || 0), 0);
+  const byOp = {};
+  items.forEach(h => { byOp[h.operador] = (byOp[h.operador] || 0) + parseFloat(h.precio || 0); });
+
+  const sumOf = arr => arr.reduce((s, h) => s + parseFloat(h.precio || 0), 0);
+
+  document.getElementById('reporteContenido').innerHTML = `
+    <div class="report-row"><span>Diarios (${diarios.length} vehículos)</span><span>S/ ${sumOf(diarios).toFixed(2)}</span></div>
+    <div class="report-row"><span>Semanales (${semanales.length} vehículos)</span><span>S/ ${sumOf(semanales).toFixed(2)}</span></div>
+    <div class="report-row"><span>Mensuales (${mensuales.length} vehículos)</span><span>S/ ${sumOf(mensuales).toFixed(2)}</span></div>
+    <div class="report-row total"><span>TOTAL HOY</span><span>S/ ${total.toFixed(2)}</span></div>
+    <div style="margin-top:.875rem;padding-top:.875rem;border-top:1px solid #e0dfd8">
+      <div style="font-size:11px;color:#888780;font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Por operador</div>
+      ${Object.entries(byOp).map(([op, v]) => `<div class="report-row"><span>${op}</span><span>S/ ${v.toFixed(2)}</span></div>`).join('')}
+    </div>
+    <div style="margin-top:.875rem;padding-top:.875rem;border-top:1px solid #e0dfd8">
+      <div class="report-row"><span>Actualmente en garaje</span><span>${activos.length} vehículos</span></div>
+      <div class="report-row"><span>Espacios disponibles</span><span>${Math.max(0, MAX() - activos.length)}</span></div>
+    </div>`;
+}
+
+function renderAll() {
+  updateKPIs();
+  renderActivos();
+  renderHistorial();
+  if (document.getElementById('tab-reporte').classList.contains('active')) renderReporte();
+}
+
+function registrarEntrada() {
+  const placa = document.getElementById('plate').value.trim().toUpperCase();
+  const tarifa = document.getElementById('tarifa').value;
+  const precio = parseFloat(document.getElementById('precio').value);
+  const obs = document.getElementById('obs').value.trim();
+  const op = document.getElementById('operatorGlobal').value;
+
+  if (!placa) { alert_('alertForm', 'Ingresa la placa del vehículo', 'error'); return; }
+  if (activos.find(a => a.placa === placa)) { alert_('alertForm', 'Esta placa ya está registrada en el garaje', 'error'); return; }
+  if (activos.length >= MAX()) { alert_('alertForm', 'Garaje lleno — capacidad máxima alcanzada', 'error'); return; }
+
+  const reg = { placa, tarifa, precio, obs, operador: op, horaEntrada: horaStr(), fechaEntrada: fechaStr(), ts: Date.now(), id: Date.now() };
+  activos.push(reg);
+  save();
+  renderAll();
+  document.getElementById('plate').value = '';
+  document.getElementById('obs').value = '';
+  alert_('alertForm', 'Entrada registrada: ' + placa, 'success');
+  enviarASheets('entrada', reg);
+}
+
+function registrarSalida(idx) {
+  const reg = activos[idx];
+  if (!reg) return;
+  const min = difMin(reg.ts);
+  const item = { ...reg, horaSalida: horaStr(), fechaSalida: fechaStr(), minutos: min };
+  historial.push(item);
+  activos.splice(idx, 1);
+  save();
+  renderAll();
+  document.getElementById('plateExit').value = '';
+  document.getElementById('exitResults').innerHTML = '';
+  enviarASheets('salida', item);
+}
+
+function buscarPlaca(q) {
+  const el = document.getElementById('exitResults');
+  if (!q.trim()) { el.innerHTML = ''; return; }
+  const matches = activos.filter(a => a.placa.includes(q.trim().toUpperCase()));
+  if (!matches.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#888780;padding:4px 0">No encontrado en el garaje</div>';
+    return;
+  }
+  el.innerHTML = matches.map(a => {
+    const idx = activos.indexOf(a);
+    const min = difMin(a.ts);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f4f3f0">
+      <div>
+        <span class="plate">${a.placa}</span>
+        <span style="font-size:11px;color:#888780;margin-left:6px">${duracion(min)} · S/ ${parseFloat(a.precio).toFixed(2)} · ${a.tarifa}</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="registrarSalida(${idx})">Salida</button>
+    </div>`;
+  }).join('');
+}
+
+async function enviarASheets(tipo, data) {
+  const url = WEBURL();
+  if (!url) { setSyncState('warn', 'Sin URL'); return; }
+  setSyncState('loading', 'Sincronizando...');
+  try {
+    await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ tipo, ...data }) });
+    setSyncState('ok', 'Sincronizado');
+  } catch (e) {
+    setSyncState('error', 'Error sync');
+  }
+}
+
+// Lee la hoja pública vía gviz (sin CORS, sin Apps Script)
+function leerSheetPublico(sheetId, sheetName) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__gviz_' + Date.now();
+    const url = 'https://docs.google.com/spreadsheets/d/' + sheetId +
+      '/gviz/tq?tqx=out:json&tq=select+*&sheet=' + encodeURIComponent(sheetName);
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error('timeout'));
+    }, 10000);
+    // gviz llama google.visualization.Query.setResponse — interceptamos
+    const origSetResponse = (window.google && window.google.visualization &&
+      window.google.visualization.Query && window.google.visualization.Query.setResponse);
+    if (!window.google) window.google = {};
+    if (!window.google.visualization) window.google.visualization = {};
+    if (!window.google.visualization.Query) window.google.visualization.Query = {};
+    window.google.visualization.Query.setResponse = function(resp) {
+      clearTimeout(timeout);
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (origSetResponse) window.google.visualization.Query.setResponse = origSetResponse;
+      resolve(resp);
+    };
+    const script = document.createElement('script');
+    script.src = url + '&tqx=out:json;responseHandler:google.visualization.Query.setResponse';
+    script.onerror = function() { clearTimeout(timeout); reject(new Error('Error cargando sheet')); };
+    document.head.appendChild(script);
+  });
+}
+
+// Parsea la respuesta gviz a array de objetos con los campos de REGISTROS
+function parsearGviz(resp) {
+  if (!resp || !resp.table) return [];
+  const cols = resp.table.cols.map(c => c.label);
+  return (resp.table.rows || []).map(row => {
+    const obj = {};
+    row.c.forEach((cell, i) => { obj[cols[i]] = cell ? cell.v : ''; });
+    return obj;
+  });
+}
+
+async function sincronizarDesdeSheets() {
+  const sid = localStorage.getItem('pk_sid') || '';
+  if (!sid) { alert_('alertConfig', 'Ingresa el ID de tu Google Sheet en el campo de arriba', 'warn'); return; }
+  setSyncState('loading', 'Leyendo Sheets...');
+  try {
+    const resp = await leerSheetPublico(sid, 'REGISTROS');
+    const rows = parsearGviz(resp);
+    // Filtrar solo los que no tienen hora de salida (siguen dentro)
+    const nuevosActivos = rows
+      .filter(r => !r['Salida'] || r['Salida'] === '')
+      .map(r => ({
+        placa: r['Placa'] || '',
+        tarifa: r['Tarifa'] || 'diario',
+        precio: parseFloat(r['Precio']) || 0,
+        horaEntrada: r['Entrada'] || '',
+        fechaEntrada: r['Fecha'] || '',
+        operador: r['Operador'] || '',
+        obs: r['Obs'] || '',
+        ts: Date.now()
+      }))
+      .filter(r => r.placa);
+    activos = nuevosActivos;
+    save();
+    renderAll();
+    setSyncState('ok', 'Datos cargados');
+    alert_('alertConfig', 'Cargados ' + activos.length + ' vehículos activos desde Sheets', 'success');
+  } catch (e) {
+    setSyncState('error', 'Error');
+    alert_('alertConfig', 'No se pudo leer la hoja. Verifica que el ID sea correcto y la hoja esté compartida como "Lector para cualquiera".', 'error');
+  }
+}
+
+async function probarConexion() {
+  const sid = document.getElementById('sheetId') ? document.getElementById('sheetId').value.trim() : '';
+  const url = document.getElementById('webAppUrl') ? document.getElementById('webAppUrl').value.trim() : '';
+  if (!sid && !url) { alert_('alertConfig', 'Ingresa al menos el ID de la hoja o la URL del Web App', 'warn'); return; }
+  setSyncState('loading', 'Probando...');
+  let okSheet = false, okWebApp = false;
+  // Probar Sheet ID si está presente
+  if (sid) {
+    try {
+      const resp = await leerSheetPublico(sid, 'REGISTROS');
+      if (resp && resp.table) { okSheet = true; localStorage.setItem('pk_sid', sid); }
+    } catch(e) { /* sigue */ }
+  }
+  // Probar Web App si está presente (solo para escritura)
+  if (url) {
+    try {
+      await fetch(url + '?action=ping', { mode: 'no-cors' });
+      okWebApp = true; localStorage.setItem('pk_url', url);
+    } catch(e) { /* sigue */ }
+  }
+  if (okSheet || okWebApp) {
+    setSyncState('ok', 'Conectado');
+    const msgs = [];
+    if (okSheet) msgs.push('Sheets (lectura) OK');
+    if (okWebApp) msgs.push('Web App (escritura) OK');
+    if (sid && !okSheet) msgs.push('Sheet ID no válido o hoja no pública');
+    alert_('alertConfig', msgs.join(' · '), okSheet ? 'success' : 'warn');
+  } else {
+    setSyncState('error', 'Sin conexión');
+    alert_('alertConfig', 'No se pudo conectar. Revisa el ID de la hoja y que esté compartida públicamente.', 'error');
+  }
+}
+
+async function exportarReporte() {
+  const url = WEBURL();
+  const hoyStr = fechaStr();
+  const items = historial.filter(h => h.fechaSalida === hoyStr);
+  if (!url) { alert_('alertConfig', 'Primero configura la URL de Google Sheets en la pestaña Config', 'warn'); return; }
+  setSyncState('loading', 'Exportando...');
+  try {
+    await fetch(url, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ tipo: 'reporte_diario', fecha: hoyStr, items, activos }) });
+    setSyncState('ok', 'Reporte enviado');
+    alert_('alertConfig', 'Reporte exportado a Google Sheets', 'success');
+  } catch (e) {
+    setSyncState('error', 'Error export');
+  }
+}
+
+function setSyncState(state, text) {
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncText');
+  dot.className = 'sync-dot' + (state === 'loading' ? ' loading' : state === 'error' ? ' error' : '');
+  txt.textContent = text;
+  if (state === 'ok') setTimeout(() => { txt.textContent = 'Conectado'; }, 3500);
+}
+
+function showTab(name, event) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'config') cargarConfig();
+  if (name === 'reporte') renderReporte();
+}
+
+function descargarScript() {
+  const code = `// ============================================================
+// CONTROL DE ESTACIONAMIENTO — Google Apps Script
+// Pegar en: Google Sheet → Extensiones → Apps Script
+// Desplegar como Web App:
+//   - Ejecutar como: Yo (tu cuenta)
+//   - Acceso: Cualquier usuario (anónimo)
+// ============================================================
+
+const SHEET_ID = 'PEGA_AQUI_EL_ID_DE_TU_GOOGLE_SHEET';
+// El ID está en la URL de tu Sheet:
+// https://docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/edit
+
+const SHEET_REGISTROS = 'REGISTROS';
+const SHEET_REPORTE = 'REPORTE_DIARIO';
+
+// ---- GET: ping y consulta de activos ----
+function doGet(e) {
+  if (!e || !e.parameter) return jsonResp({ ok: true, mensaje: 'Web App activa. Usa desde el navegador, no desde el editor.' }, null);
+  const action = e.parameter.action || '';
+  const cb = e.parameter.callback || null;
+
+  if (action === 'ping') {
+    return jsonResp({ ok: true, mensaje: 'Sistema de estacionamiento activo' }, cb);
+  }
+
+  if (action === 'getActivos') {
+    try {
+      const sh = getOrCreateSheet(SHEET_REGISTROS);
+      const data = sh.getDataRange().getValues();
+      const activos = [];
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (row[5] === '' || row[5] === null) {
+          activos.push({
+            placa: row[1],
+            tarifa: row[2],
+            precio: row[3],
+            horaEntrada: row[4],
+            fechaEntrada: row[0],
+            operador: row[6],
+            obs: row[8] || '',
+            ts: new Date(row[0] + ' ' + row[4]).getTime() || Date.now()
+          });
+        }
+      }
+      return jsonResp({ ok: true, activos }, cb);
+    } catch (err) {
+      return jsonResp({ ok: false, error: err.message }, cb);
+    }
+  }
+
+  return jsonResp({ ok: false, error: 'Acción no reconocida: ' + action }, cb);
+}
+
+// ---- POST: entrada, salida, reporte ----
+function doPost(e) {
+  if (!e || !e.postData) return json({ ok: false, error: 'Sin datos POST' });
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const tipo = data.tipo;
+
+    if (tipo === 'entrada') {
+      const sh = getOrCreateSheet(SHEET_REGISTROS);
+      sh.appendRow([
+        data.fechaEntrada,
+        data.placa,
+        data.tarifa,
+        data.precio,
+        data.horaEntrada,
+        '',                  // salida vacía
+        data.operador,
+        '',                  // minutos vacío
+        data.obs || '',
+        'entrada'
+      ]);
+      return jsonResp({ ok: true }, null);
+    }
+
+    if (tipo === 'salida') {
+      const sh = getOrCreateSheet(SHEET_REGISTROS);
+      const rows = sh.getDataRange().getValues();
+      for (let i = rows.length - 1; i >= 1; i--) {
+        if (rows[i][1] === data.placa && (rows[i][5] === '' || rows[i][5] === null)) {
+          sh.getRange(i + 1, 6).setValue(data.horaSalida);
+          sh.getRange(i + 1, 8).setValue(data.minutos);
+          break;
+        }
+      }
+      return jsonResp({ ok: true }, null);
+    }
+
+    if (tipo === 'reporte_diario') {
+      const sh = getOrCreateSheet(SHEET_REPORTE, ['Fecha', 'Vehículos atendidos', 'Total S/', 'En garaje al cierre', 'Operadores']);
+      const total = (data.items || []).reduce((s, h) => s + parseFloat(h.precio || 0), 0);
+      const ops = [...new Set((data.items || []).map(h => h.operador))].join(', ');
+      sh.appendRow([
+        data.fecha,
+        (data.items || []).length,
+        total.toFixed(2),
+        (data.activos || []).length,
+        ops
+      ]);
+      return jsonResp({ ok: true }, null);
+    }
+
+    return jsonResp({ ok: false, error: 'Tipo no reconocido: ' + tipo }, null);
+
+  } catch (err) {
+    return jsonResp({ ok: false, error: err.message }, null);
+  }
+}
+
+// ---- Helpers ----
+function getOrCreateSheet(name, headers) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    const defaultHeaders = ['Fecha', 'Placa', 'Tarifa', 'Precio', 'Entrada', 'Salida', 'Operador', 'Minutos', 'Obs', 'Tipo'];
+    sh.appendRow(headers || defaultHeaders);
+    sh.getRange(1, 1, 1, (headers || defaultHeaders).length)
+      .setBackground('#0F6E56')
+      .setFontColor('#ffffff')
+      .setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function jsonResp(obj, callback) {
+  const body = JSON.stringify(obj);
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + body + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService
+    .createTextOutput(body)
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'parking_apps_script.gs';
+  a.click();
+  URL.revokeObjectURL(url);
+  alert_('alertConfig', 'Descargado: parking_apps_script.gs', 'success');
+}
+
+// ---- Init ----
+cargarConfig();
+renderAll();
+setInterval(renderAll, 30000);
+</script>
+</body>
+</html>
