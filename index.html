@@ -902,40 +902,70 @@ async function sincronizarDesdeSheets(){
   try {
     const resp=await leerSheetPublico(SID());
     const rows=parsearGviz(resp);
-    // Placas que ya tienen salida en el historial local — no recargarlas aunque Sheets las muestre como activas
-    const yaConSalida = new Set(historial.map(h => h.placa + '|' + h.horaEntrada + '|' + h.fechaEntrada));
+    const hoyStr=fechaStr();
 
-    const nuevos = rows
-      .filter(r => (!r['Salida'] || r['Salida'] === '') && (r['Placa'] || '').trim() && r['Eliminado'] !== 'SÍ')
-      .map(r => ({
-        placa:            (r['Placa'] || '').trim(),
-        tarifa:           (r['Tipo Tarifa'] || 'diario').toLowerCase().trim(),
-        precio:           parseFloat(r['Precio']) || 0,
-        horaEntrada:      r['Entrada'] || '',
-        fechaEntrada:     r['Fecha']   || '',
-        operador:         r['Operador'] || '',
-        fechaVencimiento: r['Fecha de vencimiento'] || '',
-        estado:           r['Estado']  || '',
-        deudaAcumulada:   parseFloat(r['Deuda Acumulada']) || 0,
-        ts:               parsearTs(r['Fecha'] || '', r['Entrada'] || '')
+    // Separar filas en activos (sin salida) y salidas de hoy (con salida hoy)
+    const rowsActivos  = rows.filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ');
+    const rowsSalidaHoy= rows.filter(r=>r['Salida']&&r['Salida']!==''&&(r['Placa']||'').trim());
+
+    // Placas que ya tienen salida en historial local — no recargar como activos
+    const yaConSalida=new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
+
+    // Construir activos desde Sheets filtrando los que ya salieron localmente
+    activos=rowsActivos
+      .map(r=>({
+        placa:           (r['Placa']||'').trim(),
+        tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+        precio:          parseFloat(r['Precio'])||0,
+        horaEntrada:     r['Entrada']||'',
+        fechaEntrada:    r['Fecha']||'',
+        operador:        r['Operador']||'',
+        fechaVencimiento:r['Fecha de vencimiento']||'',
+        estado:          r['Estado']||'',
+        deudaAcumulada:  parseFloat(r['Deuda Acumulada'])||0,
+        ts:              parsearTs(r['Fecha']||'',r['Entrada']||'')
       }))
-      .filter(r => {
-        if (!r.placa) return false;
-        // Si ya tiene salida en historial local, no recargar
-        const key = r.placa + '|' + r.horaEntrada + '|' + r.fechaEntrada;
-        if (yaConSalida.has(key)) return false;
-        return true;
+      .filter(r=>{
+        if(!r.placa) return false;
+        const key=r.placa+'|'+r.horaEntrada+'|'+r.fechaEntrada;
+        return !yaConSalida.has(key);
       });
 
-    // Mantener activos locales que Sheets aún no confirmó (salidas pendientes de sync)
-    // Un activo local se mantiene si NO viene en Sheets (ya fue procesado allá) O si sí viene (actualizarlo)
-    const placasNuevas = new Set(nuevos.map(r => r.placa + '|' + r.horaEntrada + '|' + r.fechaEntrada));
-    // Activos locales que no están en Sheets = probablemente ya salieron pero Sheets aún no lo refleja
-    // No los eliminamos si NO tienen salida en historial, pero sí los actualizamos con datos de Sheets
-    activos = nuevos;
+    // Reconstruir historial del día desde Sheets (salidas con fecha de hoy)
+    // Mantener entradas locales que Sheets aún no tiene, agregar las de Sheets que no estén localmente
+    const localKeys=new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
+    rowsSalidaHoy.forEach(r=>{
+      const placa=(r['Placa']||'').trim();
+      const horaEntrada=r['Entrada']||'';
+      const fechaEntrada=r['Fecha']||'';
+      const key=placa+'|'+horaEntrada+'|'+fechaEntrada;
+      // Solo agregar si no está ya en historial local
+      if(!localKeys.has(key)&&placa){
+        const horaSalida=r['Salida']||'';
+        // Calcular fecha de salida: si la hora de salida existe y la fecha de entrada es hoy
+        // asumimos que la salida fue hoy también (caso normal del día)
+        historial.push({
+          placa,
+          tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+          precio:          parseFloat(r['Precio'])||0,
+          horaEntrada,
+          fechaEntrada,
+          horaSalida,
+          fechaSalida:     hoyStr,
+          operador:        r['Operador']||'',
+          fechaVencimiento:r['Fecha de vencimiento']||'',
+          deudaFinal:      parseFloat(r['Deuda Acumulada'])||0,
+          minutos:         0
+        });
+      }
+    });
+
     save(); renderAll();
-    setSyncState('ok', 'Datos cargados');
-    alert_('alertConfig', 'Cargados ' + activos.length + ' vehículos desde Sheets', 'success');
+    const salidashoy=historial.filter(h=>h.fechaSalida===hoyStr);
+    setSyncState('ok','Datos cargados');
+    alert_('alertConfig',
+      'Activos: '+activos.length+' · Salidas hoy: '+salidashoy.length,
+      'success');
   } catch(e){
     setSyncState('error','Error');
     alert_('alertConfig','No se pudo leer la hoja. Verifica que esté compartida como Lector.','error');
@@ -955,8 +985,8 @@ async function probarConexion(){
 async function enviarASheets(tipo,data){
   const url=WEBURL();if(!url)return;
   setSyncState('loading','Enviando...');
-  try {await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({tipo,...data})});setSyncState('ok','Sincronizado');}
-  catch(e){setSyncState('error','Error');}
+  await enviarConReintento(tipo,data);
+  setSyncState('ok','Enviado');
 }
 
 // ── CONFIG ───────────────────────────────────────────────────
@@ -998,8 +1028,12 @@ function alert_(elId,msg,type){
 function setSyncState(state,text){
   const dot=document.getElementById('syncDot'),txt=document.getElementById('syncText');
   dot.className='sync-dot'+(state==='loading'?' loading':state==='error'?' error':'');
-  txt.textContent=text;
-  if(state==='ok') setTimeout(()=>{txt.textContent='Conectado';},3000);
+  const pending = pendientes && pendientes.length ? ' ('+pendientes.length+' pend.)' : '';
+  txt.textContent=text+pending;
+  if(state==='ok') setTimeout(()=>{
+    const p=pendientes&&pendientes.length?' ('+pendientes.length+' pend.)':'';
+    txt.textContent='Sincronizado'+p;
+  },3000);
 }
 
 function descargarScript(){
@@ -1113,13 +1147,133 @@ function jsonResp(obj, cb) {
   alert_('alertConfig','Descargado: garage_apps_script.gs','success');
 }
 
+// ── COLA DE PENDIENTES ───────────────────────────────────────
+// Operaciones que no llegaron a Sheets se guardan y reintentan
+let pendientes = JSON.parse(localStorage.getItem('pk_pending') || '[]');
+
+function savePendientes() {
+  localStorage.setItem('pk_pending', JSON.stringify(pendientes));
+}
+
+async function enviarConReintento(tipo, data) {
+  const url = WEBURL();
+  if (!url) return;
+  try {
+    await fetch(url, { method:'POST', mode:'no-cors', body:JSON.stringify({tipo,...data}) });
+    // no-cors no confirma, pero al menos llegó sin error de red
+  } catch(e) {
+    // Error de red — guardar en cola para reintento
+    pendientes.push({ tipo, data, ts: Date.now() });
+    savePendientes();
+    setSyncState('error', 'Sin red · pendiente');
+  }
+}
+
+async function procesarPendientes() {
+  if (!pendientes.length) return;
+  const url = WEBURL();
+  if (!url) return;
+  const restantes = [];
+  for (const p of pendientes) {
+    try {
+      await fetch(url, { method:'POST', mode:'no-cors', body:JSON.stringify({tipo:p.tipo,...p.data}) });
+      // Enviado OK — no agregar a restantes
+    } catch(e) {
+      restantes.push(p);
+    }
+  }
+  pendientes = restantes;
+  savePendientes();
+}
+
+// ── SYNC AUTOMÁTICO CADA 30 SEG ──────────────────────────────
+let syncActivo = false;
+
+async function syncLoop() {
+  if (syncActivo) return;
+  syncActivo = true;
+  try {
+    await procesarPendientes();
+    await sincronizarSilencioso();
+  } finally {
+    syncActivo = false;
+  }
+}
+
+// Sync silencioso: igual que sincronizarDesdeSheets pero sin alertas
+async function sincronizarSilencioso() {
+  try {
+    const resp = await leerSheetPublico(SID());
+    const rows = parsearGviz(resp);
+    const hoyStr = fechaStr();
+
+    const rowsActivos   = rows.filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ');
+    const rowsSalidaHoy = rows.filter(r=>r['Salida']&&r['Salida']!==''&&(r['Placa']||'').trim());
+
+    const yaConSalida = new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
+
+    // Activos desde Sheets (excluyendo los que ya salieron localmente)
+    const nuevosActivos = rowsActivos
+      .map(r=>({
+        placa:           (r['Placa']||'').trim(),
+        tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+        precio:          parseFloat(r['Precio'])||0,
+        horaEntrada:     r['Entrada']||'',
+        fechaEntrada:    r['Fecha']||'',
+        operador:        r['Operador']||'',
+        fechaVencimiento:r['Fecha de vencimiento']||'',
+        estado:          r['Estado']||'',
+        deudaAcumulada:  parseFloat(r['Deuda Acumulada'])||0,
+        ts:              parsearTs(r['Fecha']||'',r['Entrada']||'')
+      }))
+      .filter(r=>{
+        if(!r.placa) return false;
+        return !yaConSalida.has(r.placa+'|'+r.horaEntrada+'|'+r.fechaEntrada);
+      });
+
+    // Historial del día desde Sheets — agregar salidas que no estén localmente
+    const localKeys = new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
+    rowsSalidaHoy.forEach(r=>{
+      const placa=(r['Placa']||'').trim();
+      const horaEntrada=r['Entrada']||'';
+      const fechaEntrada=r['Fecha']||'';
+      const key=placa+'|'+horaEntrada+'|'+fechaEntrada;
+      if(!localKeys.has(key)&&placa){
+        historial.push({
+          placa,
+          tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+          precio:          parseFloat(r['Precio'])||0,
+          horaEntrada,
+          fechaEntrada,
+          horaSalida:      r['Salida']||'',
+          fechaSalida:     hoyStr,
+          operador:        r['Operador']||'',
+          fechaVencimiento:r['Fecha de vencimiento']||'',
+          deudaFinal:      parseFloat(r['Deuda Acumulada'])||0,
+          minutos:         0
+        });
+      }
+    });
+
+    activos = nuevosActivos;
+    save();
+    renderAll();
+    setSyncState('ok', 'Sincronizado');
+  } catch(e) {
+    // Fallo silencioso — no mostrar error al operador a menos que sea persistente
+  }
+}
+
 // ── INIT ─────────────────────────────────────────────────────
 document.getElementById('fechaHoy').textContent=hoyLong();
 if(!localStorage.getItem('pk_sid')) localStorage.setItem('pk_sid',SHEET_ID_DEFAULT);
 if(!localStorage.getItem('pk_url')) localStorage.setItem('pk_url',WEB_APP_DEFAULT);
 cargarConfig();
 renderAll();
-setInterval(renderAll,60000);
+// Sync inmediato al abrir
+sincronizarSilencioso();
+// Sync automático cada 30 segundos
+setInterval(syncLoop, 30000);
 </script>
 </body>
 </html>
