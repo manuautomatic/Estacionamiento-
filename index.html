@@ -461,6 +461,9 @@ function registrarEntrada(){
   const op=document.getElementById('operatorGlobal').value;
   if(!placa){alert_('alertForm','Ingresa la placa','error');return;}
   if(activos.find(a=>a.placa===placa)){alert_('alertForm','Esta placa ya está en el garaje','error');return;}
+  // Evitar reenviar entrada si ya está en historial reciente (menos de 10 min)
+  const entradaReciente=historial.find(h=>h.placa===placa&&(Date.now()-parsearTs(h.fechaSalida,h.horaSalida))<600000);
+  // (solo informativo, no bloquea — el operador decide)
   if(activos.length>=MAX()){alert_('alertForm','Garaje lleno','error');return;}
   // Leer fecha editable del input y convertir a DD/MM/YYYY
   let fvenc='';
@@ -479,6 +482,13 @@ function registrarEntrada(){
 
 function registrarSalida(idx){
   const reg=activos[idx];if(!reg)return;
+  // Evitar doble salida si ya está en historial
+  const yaExiste=historial.find(h=>h.placa===reg.placa&&h.horaEntrada===reg.horaEntrada&&h.fechaEntrada===reg.fechaEntrada);
+  if(yaExiste){
+    activos.splice(idx,1);
+    save();renderAll();
+    return;
+  }
   const d=infoDeuda(reg);
   const item={...reg,horaSalida:horaStr(),fechaSalida:fechaStr(),minutos:difMin(reg.ts),deudaFinal:d.deuda};
   historial.push(item);
@@ -533,27 +543,34 @@ function confirmarPago(){
 function renderResumenDia(){
   const hoyStr=fechaStr();
   const items=historial.filter(h=>h.fechaSalida===hoyStr);
-  const diarios=items.filter(h=>h.tarifa==='diario');
-  const mens=items.filter(h=>h.tarifa==='mensual');
-  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
+  // Normalizar tarifa para comparar
+  const diarios=items.filter(h=>(h.tarifa||'').toLowerCase().trim()==='diario');
+  const mens=items.filter(h=>(h.tarifa||'').toLowerCase().trim()==='mensual');
+  // Ingreso real incluye deuda cobrada al salir
+  const sumOf=arr=>arr.reduce((s,h)=>s+calcularIngreso(h),0);
   const byOp={};
-  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
+  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+calcularIngreso(h);});
   const el=document.getElementById('resumenDia');
   if(!items.length){el.innerHTML='<div class="empty" style="padding:1rem">Sin movimientos hoy</div>';return;}
   el.innerHTML=`
     <div class="report-row"><span>Diarios (${diarios.length})</span><span>S/ ${sumOf(diarios).toFixed(2)}</span></div>
     <div class="report-row"><span>Mensuales (${mens.length})</span><span>S/ ${sumOf(mens).toFixed(2)}</span></div>
-    <div class="report-row total"><span>TOTAL</span><span>S/ ${sumOf(items).toFixed(2)}</span></div>
+    <div class="report-row total"><span>EN CAJA HOY</span><span>S/ ${sumOf(items).toFixed(2)}</span></div>
     <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
       ${Object.entries(byOp).map(([op,v])=>`<div class="report-row"><span class="mini">${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join('')}
     </div>`;
 }
 
 // ── RENDER GARAJE ────────────────────────────────────────────
+function calcularIngreso(h) {
+  // Ingreso real = precio base + deuda cobrada al salir
+  return parseFloat(h.precio || 0) + parseFloat(h.deudaFinal || 0);
+}
+
 function updateKPIs(){
   const hoyStr=fechaStr();
   const sal=historial.filter(h=>h.fechaSalida===hoyStr);
-  const ing=sal.reduce((s,h)=>s+parseFloat(h.precio||0),0);
+  const ing=sal.reduce((s,h)=>s+calcularIngreso(h),0);
   document.getElementById('kpiDentro').textContent=activos.length;
   document.getElementById('kpiDisp').textContent=Math.max(0,MAX()-activos.length);
   document.getElementById('kpiSalidas').textContent=sal.length;
@@ -658,11 +675,11 @@ function renderGerencia(){
   // Agregar el día actual si tiene movimientos
   const hoyStr=fechaStr();
   const itemsHoy=historial.filter(h=>h.fechaSalida===hoyStr);
-  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
+  const sumOf=arr=>arr.reduce((s,h)=>s+calcularIngreso(h),0);
 
   const totalMes=todosDias.reduce((s,d)=>s+d.total,0)+sumOf(itemsHoy);
-  const totalDiariosMes=todosDias.reduce((s,d)=>s+d.totalDiarios,0)+sumOf(itemsHoy.filter(h=>h.tarifa==='diario'));
-  const totalMensMes=todosDias.reduce((s,d)=>s+d.totalMensuales,0)+sumOf(itemsHoy.filter(h=>h.tarifa==='mensual'));
+  const totalDiariosMes=todosDias.reduce((s,d)=>s+d.totalDiarios,0)+sumOf(itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='diario'));
+  const totalMensMes=todosDias.reduce((s,d)=>s+d.totalMensuales,0)+sumOf(itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='mensual'));
   const diasConMovimiento=todosDias.length+(itemsHoy.length>0?1:0);
 
   document.getElementById('monthKpis').innerHTML=`
@@ -679,10 +696,12 @@ function renderGerencia(){
   if(!itemsHoy.length){
     elHoy.innerHTML='<div class="empty">Sin movimientos registrados hoy</div>';
   } else {
-    elHoy.innerHTML=`
-      <div class="report-row"><span>Diarios (${itemsHoy.filter(h=>h.tarifa==='diario').length})</span><span>S/ ${sumOf(itemsHoy.filter(h=>h.tarifa==='diario')).toFixed(2)}</span></div>
-      <div class="report-row"><span>Mensuales (${itemsHoy.filter(h=>h.tarifa==='mensual').length})</span><span>S/ ${sumOf(itemsHoy.filter(h=>h.tarifa==='mensual')).toFixed(2)}</span></div>
-      <div class="report-row total"><span>TOTAL HOY</span><span>S/ ${sumOf(itemsHoy).toFixed(2)}</span></div>
+    const diariosHoy=itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='diario');
+      const mensHoy=itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='mensual');
+      elHoy.innerHTML=`
+      <div class="report-row"><span>Diarios (${diariosHoy.length})</span><span>S/ ${sumOf(diariosHoy).toFixed(2)}</span></div>
+      <div class="report-row"><span>Mensuales (${mensHoy.length})</span><span>S/ ${sumOf(mensHoy).toFixed(2)}</span></div>
+      <div class="report-row total"><span>EN CAJA HOY</span><span>S/ ${sumOf(itemsHoy).toFixed(2)}</span></div>
       <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
         <div class="mini" style="font-weight:700;margin-bottom:6px">DETALLE SALIDAS DE HOY</div>
         <div class="overflow-x"><table>
@@ -788,9 +807,9 @@ async function exportarYReiniciar(){
   const hoyStr=fechaStr();
   const items=historial.filter(h=>h.fechaSalida===hoyStr);
   if(!items.length){alert('No hay movimientos del día para exportar.');return;}
-  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
+  const sumOf=arr=>arr.reduce((s,h)=>s+calcularIngreso(h),0);
   const byOp={};
-  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
+  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+calcularIngreso(h);});
 
   // Snapshot de quién queda al cerrar
   const snapActivos=activos.map(a=>({
@@ -883,24 +902,40 @@ async function sincronizarDesdeSheets(){
   try {
     const resp=await leerSheetPublico(SID());
     const rows=parsearGviz(resp);
-    activos=rows
-      .filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ')
-      .map(r=>({
-        placa:(r['Placa']||'').trim(),
-        tarifa:(r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-        precio:parseFloat(r['Precio'])||0,
-        horaEntrada:r['Entrada']||'',
-        fechaEntrada:r['Fecha']||'',
-        operador:r['Operador']||'',
-        fechaVencimiento:r['Fecha de vencimiento']||'',
-        estado:r['Estado']||'',
-        deudaAcumulada:parseFloat(r['Deuda Acumulada'])||0,
-        ts:parsearTs(r['Fecha']||'',r['Entrada']||'')
+    // Placas que ya tienen salida en el historial local — no recargarlas aunque Sheets las muestre como activas
+    const yaConSalida = new Set(historial.map(h => h.placa + '|' + h.horaEntrada + '|' + h.fechaEntrada));
+
+    const nuevos = rows
+      .filter(r => (!r['Salida'] || r['Salida'] === '') && (r['Placa'] || '').trim() && r['Eliminado'] !== 'SÍ')
+      .map(r => ({
+        placa:            (r['Placa'] || '').trim(),
+        tarifa:           (r['Tipo Tarifa'] || 'diario').toLowerCase().trim(),
+        precio:           parseFloat(r['Precio']) || 0,
+        horaEntrada:      r['Entrada'] || '',
+        fechaEntrada:     r['Fecha']   || '',
+        operador:         r['Operador'] || '',
+        fechaVencimiento: r['Fecha de vencimiento'] || '',
+        estado:           r['Estado']  || '',
+        deudaAcumulada:   parseFloat(r['Deuda Acumulada']) || 0,
+        ts:               parsearTs(r['Fecha'] || '', r['Entrada'] || '')
       }))
-      .filter(r=>r.placa);
-    save();renderAll();
-    setSyncState('ok','Datos cargados');
-    alert_('alertConfig','Cargados '+activos.length+' vehículos desde Sheets','success');
+      .filter(r => {
+        if (!r.placa) return false;
+        // Si ya tiene salida en historial local, no recargar
+        const key = r.placa + '|' + r.horaEntrada + '|' + r.fechaEntrada;
+        if (yaConSalida.has(key)) return false;
+        return true;
+      });
+
+    // Mantener activos locales que Sheets aún no confirmó (salidas pendientes de sync)
+    // Un activo local se mantiene si NO viene en Sheets (ya fue procesado allá) O si sí viene (actualizarlo)
+    const placasNuevas = new Set(nuevos.map(r => r.placa + '|' + r.horaEntrada + '|' + r.fechaEntrada));
+    // Activos locales que no están en Sheets = probablemente ya salieron pero Sheets aún no lo refleja
+    // No los eliminamos si NO tienen salida en historial, pero sí los actualizamos con datos de Sheets
+    activos = nuevos;
+    save(); renderAll();
+    setSyncState('ok', 'Datos cargados');
+    alert_('alertConfig', 'Cargados ' + activos.length + ' vehículos desde Sheets', 'success');
   } catch(e){
     setSyncState('error','Error');
     alert_('alertConfig','No se pudo leer la hoja. Verifica que esté compartida como Lector.','error');
