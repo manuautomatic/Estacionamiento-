@@ -491,6 +491,7 @@ function registrarSalida(idx){
   }
   const d=infoDeuda(reg);
   const item={...reg,horaSalida:horaStr(),fechaSalida:fechaStr(),minutos:difMin(reg.ts),deudaFinal:d.deuda};
+  // fechaSalida se envía a Sheets para poder filtrar correctamente
   historial.push(item);
   activos.splice(idx,1);
   save();renderAll();
@@ -1208,7 +1209,16 @@ async function sincronizarSilencioso() {
     const hoyStr = fechaStr();
 
     const rowsActivos   = rows.filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ');
-    const rowsSalidaHoy = rows.filter(r=>r['Salida']&&r['Salida']!==''&&(r['Placa']||'').trim());
+    // Traer salidas de hoy usando Fecha Salida de Sheets, o fallback a Fecha de entrada si no existe
+    const rowsSalidaHoy = rows.filter(r=>{
+      if(!r['Salida']||r['Salida']==='') return false;
+      if(!(r['Placa']||'').trim()) return false;
+      // Si tiene Fecha Salida, comparar con hoy
+      const fs = r['Fecha Salida']||'';
+      if(fs) return fs===hoyStr;
+      // Fallback: usar fecha de entrada (para registros viejos sin Fecha Salida)
+      return (r['Fecha']||'')===hoyStr;
+    });
 
     const yaConSalida = new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
 
@@ -1239,6 +1249,7 @@ async function sincronizarSilencioso() {
       const fechaEntrada=r['Fecha']||'';
       const key=placa+'|'+horaEntrada+'|'+fechaEntrada;
       if(!localKeys.has(key)&&placa){
+        const fechaSalidaReal = r['Fecha Salida']||hoyStr;
         historial.push({
           placa,
           tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
@@ -1246,7 +1257,7 @@ async function sincronizarSilencioso() {
           horaEntrada,
           fechaEntrada,
           horaSalida:      r['Salida']||'',
-          fechaSalida:     hoyStr,
+          fechaSalida:     fechaSalidaReal,
           operador:        r['Operador']||'',
           fechaVencimiento:r['Fecha de vencimiento']||'',
           deudaFinal:      parseFloat(r['Deuda Acumulada'])||0,
