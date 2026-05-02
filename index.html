@@ -901,72 +901,11 @@ function parsearGviz(resp){
 async function sincronizarDesdeSheets(){
   setSyncState('loading','Leyendo Sheets...');
   try {
-    const resp=await leerSheetPublico(SID());
-    const rows=parsearGviz(resp);
+    await sincronizarSilencioso();
     const hoyStr=fechaStr();
-
-    // Separar filas en activos (sin salida) y salidas de hoy (con salida hoy)
-    const rowsActivos  = rows.filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ');
-    const rowsSalidaHoy= rows.filter(r=>r['Salida']&&r['Salida']!==''&&(r['Placa']||'').trim());
-
-    // Placas que ya tienen salida en historial local — no recargar como activos
-    const yaConSalida=new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
-
-    // Construir activos desde Sheets filtrando los que ya salieron localmente
-    activos=rowsActivos
-      .map(r=>({
-        placa:           (r['Placa']||'').trim(),
-        tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-        precio:          parseFloat(r['Precio'])||0,
-        horaEntrada:     r['Entrada']||'',
-        fechaEntrada:    r['Fecha']||'',
-        operador:        r['Operador']||'',
-        fechaVencimiento:r['Fecha de vencimiento']||'',
-        estado:          r['Estado']||'',
-        deudaAcumulada:  parseFloat(r['Deuda Acumulada'])||0,
-        ts:              parsearTs(r['Fecha']||'',r['Entrada']||'')
-      }))
-      .filter(r=>{
-        if(!r.placa) return false;
-        const key=r.placa+'|'+r.horaEntrada+'|'+r.fechaEntrada;
-        return !yaConSalida.has(key);
-      });
-
-    // Reconstruir historial del día desde Sheets (salidas con fecha de hoy)
-    // Mantener entradas locales que Sheets aún no tiene, agregar las de Sheets que no estén localmente
-    const localKeys=new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
-    rowsSalidaHoy.forEach(r=>{
-      const placa=(r['Placa']||'').trim();
-      const horaEntrada=r['Entrada']||'';
-      const fechaEntrada=r['Fecha']||'';
-      const key=placa+'|'+horaEntrada+'|'+fechaEntrada;
-      // Solo agregar si no está ya en historial local
-      if(!localKeys.has(key)&&placa){
-        const horaSalida=r['Salida']||'';
-        // Calcular fecha de salida: si la hora de salida existe y la fecha de entrada es hoy
-        // asumimos que la salida fue hoy también (caso normal del día)
-        historial.push({
-          placa,
-          tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-          precio:          parseFloat(r['Precio'])||0,
-          horaEntrada,
-          fechaEntrada,
-          horaSalida,
-          fechaSalida:     hoyStr,
-          operador:        r['Operador']||'',
-          fechaVencimiento:r['Fecha de vencimiento']||'',
-          deudaFinal:      parseFloat(r['Deuda Acumulada'])||0,
-          minutos:         0
-        });
-      }
-    });
-
-    save(); renderAll();
     const salidashoy=historial.filter(h=>h.fechaSalida===hoyStr);
     setSyncState('ok','Datos cargados');
-    alert_('alertConfig',
-      'Activos: '+activos.length+' · Salidas hoy: '+salidashoy.length,
-      'success');
+    alert_('alertConfig','Activos: '+activos.length+' · Salidas hoy: '+salidashoy.length,'success');
   } catch(e){
     setSyncState('error','Error');
     alert_('alertConfig','No se pudo leer la hoja. Verifica que esté compartida como Lector.','error');
@@ -1208,70 +1147,53 @@ async function sincronizarSilencioso() {
     const rows = parsearGviz(resp);
     const hoyStr = fechaStr();
 
-    const rowsActivos   = rows.filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ');
-    // Traer salidas de hoy usando Fecha Salida de Sheets, o fallback a Fecha de entrada si no existe
-    const rowsSalidaHoy = rows.filter(r=>{
-      if(!r['Salida']||r['Salida']==='') return false;
-      if(!(r['Placa']||'').trim()) return false;
-      // Si tiene Fecha Salida, comparar con hoy
-      const fs = r['Fecha Salida']||'';
-      if(fs) return fs===hoyStr;
-      // Fallback: usar fecha de entrada (para registros viejos sin Fecha Salida)
-      return (r['Fecha']||'')===hoyStr;
-    });
-
-    const yaConSalida = new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
-
-    // Activos desde Sheets (excluyendo los que ya salieron localmente)
-    const nuevosActivos = rowsActivos
-      .map(r=>({
-        placa:           (r['Placa']||'').trim(),
-        tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-        precio:          parseFloat(r['Precio'])||0,
-        horaEntrada:     r['Entrada']||'',
-        fechaEntrada:    r['Fecha']||'',
-        operador:        r['Operador']||'',
-        fechaVencimiento:r['Fecha de vencimiento']||'',
-        estado:          r['Estado']||'',
-        deudaAcumulada:  parseFloat(r['Deuda Acumulada'])||0,
-        ts:              parsearTs(r['Fecha']||'',r['Entrada']||'')
+    // Activos: vehículos sin salida en Sheets
+    activos = rows
+      .filter(r => (!r['Salida']||r['Salida']==='') && (r['Placa']||'').trim() && r['Eliminado']!=='SÍ')
+      .map(r => ({
+        placa:            (r['Placa']||'').trim(),
+        tarifa:           (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+        precio:           parseFloat(r['Precio'])||0,
+        horaEntrada:      r['Entrada']||'',
+        fechaEntrada:     r['Fecha']||'',
+        operador:         r['Operador']||'',
+        fechaVencimiento: r['Fecha de vencimiento']||'',
+        estado:           r['Estado']||'',
+        deudaAcumulada:   parseFloat(r['Deuda Acumulada'])||0,
+        ts:               parsearTs(r['Fecha']||'', r['Entrada']||'')
       }))
-      .filter(r=>{
-        if(!r.placa) return false;
-        return !yaConSalida.has(r.placa+'|'+r.horaEntrada+'|'+r.fechaEntrada);
-      });
+      .filter(r => r.placa);
 
-    // Historial del día desde Sheets — agregar salidas que no estén localmente
-    const localKeys = new Set(historial.map(h=>h.placa+'|'+h.horaEntrada+'|'+h.fechaEntrada));
-    rowsSalidaHoy.forEach(r=>{
-      const placa=(r['Placa']||'').trim();
-      const horaEntrada=r['Entrada']||'';
-      const fechaEntrada=r['Fecha']||'';
-      const key=placa+'|'+horaEntrada+'|'+fechaEntrada;
-      if(!localKeys.has(key)&&placa){
-        const fechaSalidaReal = r['Fecha Salida']||hoyStr;
+    // Historial de hoy: reemplazar completamente desde Sheets
+    historial = historial.filter(h => h.fechaSalida !== hoyStr);
+
+    rows
+      .filter(r => r['Salida'] && r['Salida'] !== '' && (r['Placa']||'').trim())
+      .forEach(r => {
+        const fechaSalida = r['Fecha Salida'] || '';
+        if (!fechaSalida || fechaSalida !== hoyStr) return;
+        const placa = (r['Placa']||'').trim();
+        if (!placa) return;
         historial.push({
           placa,
-          tarifa:          (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-          precio:          parseFloat(r['Precio'])||0,
-          horaEntrada,
-          fechaEntrada,
-          horaSalida:      r['Salida']||'',
-          fechaSalida:     fechaSalidaReal,
-          operador:        r['Operador']||'',
-          fechaVencimiento:r['Fecha de vencimiento']||'',
-          deudaFinal:      parseFloat(r['Deuda Acumulada'])||0,
-          minutos:         0
+          tarifa:           (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+          precio:           parseFloat(r['Precio'])||0,
+          horaEntrada:      r['Entrada']||'',
+          fechaEntrada:     r['Fecha']||'',
+          horaSalida:       r['Salida']||'',
+          fechaSalida:      hoyStr,
+          operador:         r['Operador']||'',
+          fechaVencimiento: r['Fecha de vencimiento']||'',
+          deudaFinal:       parseFloat(r['Deuda Acumulada'])||0,
+          minutos:          0
         });
-      }
-    });
+      });
 
-    activos = nuevosActivos;
     save();
     renderAll();
     setSyncState('ok', 'Sincronizado');
   } catch(e) {
-    // Fallo silencioso — no mostrar error al operador a menos que sea persistente
+    // Fallo silencioso
   }
 }
 
@@ -1280,11 +1202,16 @@ document.getElementById('fechaHoy').textContent=hoyLong();
 if(!localStorage.getItem('pk_sid')) localStorage.setItem('pk_sid',SHEET_ID_DEFAULT);
 if(!localStorage.getItem('pk_url')) localStorage.setItem('pk_url',WEB_APP_DEFAULT);
 cargarConfig();
+// Limpiar historial local — Sheets es la fuente de verdad
+historial = [];
+activos = [];
+localStorage.removeItem('pk_activos');
+localStorage.removeItem('pk_hist');
 renderAll();
 // Sync inmediato al abrir
 sincronizarSilencioso();
 // Sync automático cada 30 segundos
-setInterval(syncLoop, 30000);
+setInterval(syncLoop, 10000);
 </script>
 </body>
 </html>
