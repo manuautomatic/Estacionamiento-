@@ -1149,7 +1149,12 @@ async function sincronizarSilencioso() {
 
     // Activos: vehículos sin salida en Sheets
     activos = rows
-      .filter(r => (!r['Salida']||r['Salida']==='') && (r['Placa']||'').trim() && r['Eliminado']!=='SÍ')
+      .filter(r => {
+        const sinSalida = !r['Salida'] || r['Salida']==='' || r['Salida']===null || r['Salida']===undefined;
+        const tienePlaca = (r['Placa']||'').trim() !== '';
+        const noEliminado = r['Eliminado']!=='SÍ' && r['Eliminado']!=='SI' && r['Eliminado']!==true;
+        return sinSalida && tienePlaca && noEliminado;
+      })
       .map(r => ({
         placa:            (r['Placa']||'').trim(),
         tarifa:           (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
