@@ -384,8 +384,17 @@ function save() {
 }
 
 // ── TIEMPO ───────────────────────────────────────────────────
-function horaStr()  { return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
-function fechaStr() { return new Date().toLocaleDateString('es-PE'); }
+function horaStr() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function fechaStr() {
+  // Formato fijo DD/MM/YYYY para que coincida siempre con lo que viene de Sheets
+  const d = new Date();
+  return String(d.getDate()).padStart(2,'0') + '/' +
+         String(d.getMonth()+1).padStart(2,'0') + '/' +
+         d.getFullYear();
+}
 function hoyLong()  { return new Date().toLocaleDateString('es-PE',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
 
 function parsearTs(fecha, hora) {
@@ -882,17 +891,24 @@ function parsearGviz(resp){
     row.c.forEach((cell,i)=>{
       if(!cell||cell.v===null||cell.v===undefined){obj[cols[i]]='';return;}
       const v=cell.v;
+      // gviz devuelve fechas como "Date(2026,3,28)" y horas como "Date(1899,11,30,15,32,0)"
       if(typeof v==='string'&&v.startsWith('Date(')){
         const parts=v.replace('Date(','').replace(')','').split(',').map(Number);
         const d=new Date(parts[0],parts[1],parts[2]||1,parts[3]||0,parts[4]||0,parts[5]||0);
-        if(cols[i]==='Fecha'||cols[i]==='Fecha de vencimiento'||cols[i]==='Fecha Compromiso'){
-          obj[cols[i]]=d.toLocaleDateString('es-PE');
-        } else if(cols[i]==='Entrada'||cols[i]==='Salida'){
-          obj[cols[i]]=d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+        const col=cols[i];
+        if(col==='Fecha'||col==='Fecha de vencimiento'||col==='Fecha Compromiso'||col==='Fecha Salida'){
+          // Formato DD/MM/YYYY en español peruano
+          // Formato fijo DD/MM/YYYY para consistencia entre dispositivos
+          obj[col]=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+        } else if(col==='Entrada'||col==='Salida'){
+          // Hora HH:MM — gviz usa año 1899 como base para horas puras
+          obj[col]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
         } else {
-          obj[cols[i]]=d.toLocaleDateString('es-PE');
+          obj[col]=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
         }
-      } else { obj[cols[i]]=v; }
+      } else {
+        obj[cols[i]]=v;
+      }
     });
     return obj;
   });
