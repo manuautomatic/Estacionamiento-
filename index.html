@@ -176,9 +176,17 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
       <!-- RESUMEN DEL DÍA (vista operador) -->
       <div class="card">
         <div class="sec-hdr" style="border-bottom:1px solid #e0dfd8">
-          <span class="sec-title" style="border:none;padding:0;margin:0">Resumen del día</span>
+          <span class="sec-title" style="border:none;padding:0;margin:0">Caja de hoy</span>
         </div>
         <div id="resumenDia"></div>
+      </div>
+
+      <!-- HISTORIAL DE CAJAS ANTERIORES -->
+      <div class="card">
+        <div class="sec-hdr" style="border-bottom:1px solid #e0dfd8">
+          <span class="sec-title" style="border:none;padding:0;margin:0">Cajas anteriores</span>
+        </div>
+        <div id="cajasAnteriores"></div>
       </div>
     </div>
 
@@ -550,6 +558,61 @@ function confirmarPago(){
 }
 
 // ── RESUMEN DEL DÍA (operador) ───────────────────────────────
+function renderCajasAnteriores(){
+  const el = document.getElementById('cajasAnteriores');
+  if (!el) return;
+
+  // Combinar histDias guardados + salidas de Sheets de días anteriores
+  const diasMostrar = [...histDias].sort((a,b) => {
+    // Ordenar por fecha descendente
+    const pa = a.fecha.split('/'); const pb = b.fecha.split('/');
+    const da = new Date(pa[2],pa[1]-1,pa[0]);
+    const db = new Date(pb[2],pb[1]-1,pb[0]);
+    return db - da;
+  });
+
+  if (!diasMostrar.length) {
+    el.innerHTML = '<div class="empty" style="padding:.75rem">Sin cajas anteriores</div>';
+    return;
+  }
+
+  el.innerHTML = diasMostrar.map(d => {
+    const total = parseFloat(d.total || 0);
+    const diarios = parseFloat(d.totalDiarios || 0);
+    const mens = parseFloat(d.totalMensuales || 0);
+    const nSalidas = (d.items || []).length;
+    const byOp = d.byOp || {};
+    const esAutomatico = d.cierreAutomatico || d.cierrAutomatico;
+
+    return `<div style="padding:8px 0;border-bottom:1px solid #f4f3f0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:600">${d.fecha}</span>
+        <span style="font-size:14px;font-weight:700;color:#0F6E56">S/ ${total.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:4px">
+        <span class="mini">Diarios: S/ ${diarios.toFixed(2)}</span>
+        <span class="mini">Mensuales: S/ ${mens.toFixed(2)}</span>
+        <span class="mini">${nSalidas} salidas</span>
+      </div>
+      ${Object.keys(byOp).length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${Object.entries(byOp).map(([op,v])=>`<span class="mini" style="background:#f4f3f0;padding:2px 6px;border-radius:4px">${op}: S/ ${parseFloat(v).toFixed(2)}</span>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  // Total acumulado
+  const totalAcum = diasMostrar.reduce((s,d) => s + parseFloat(d.total||0), 0);
+  const hoyStr = fechaStr();
+  const itemsHoy = historial.filter(h => h.fechaSalida === hoyStr);
+  const totalHoy = itemsHoy.reduce((s,h) => s + calcularIngreso(h), 0);
+  const grandTotal = totalAcum + totalHoy;
+
+  el.innerHTML += `<div style="padding:8px 0;margin-top:4px;border-top:2px solid #e0dfd8;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#444441">Total acumulado</span>
+    <span style="font-size:16px;font-weight:700;color:#0F6E56">S/ ${grandTotal.toFixed(2)}</span>
+  </div>`;
+}
+
 function renderResumenDia(){
   const hoyStr=fechaStr();
   const items=historial.filter(h=>h.fechaSalida===hoyStr);
@@ -651,7 +714,7 @@ function renderGaraje(){
 }
 
 function renderAll(){
-  updateKPIs();renderGaraje();renderResumenDia();
+  updateKPIs();renderGaraje();renderResumenDia();renderCajasAnteriores();
 }
 
 // ── GERENCIA ─────────────────────────────────────────────────
@@ -883,6 +946,25 @@ function leerSheetPublico(sid){
   });
 }
 
+function normalizarHora(v) {
+  // Limpia formatos como "05:38 a. m." o "5:38 a.m." → "05:38"
+  // y "05:38 p. m." → "17:38"
+  if (!v) return '';
+  v = String(v).trim();
+  const ampm = v.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(a\.?\s*m\.?|p\.?\s*m\.?)?$/i);
+  if (ampm) {
+    let h = parseInt(ampm[1]);
+    const m = ampm[2];
+    const period = (ampm[3] || '').toLowerCase().replace(/[\s.]/g,'');
+    if (period === 'pm' && h < 12) h += 12;
+    if (period === 'am' && h === 12) h = 0;
+    return String(h).padStart(2,'0') + ':' + m;
+  }
+  // Si ya es HH:MM simple
+  if (/^\d{2}:\d{2}$/.test(v)) return v;
+  return v;
+}
+
 function normalizarFecha(v) {
   if (!v) return '';
   if (typeof v === 'string' && v.includes('/')) {
@@ -916,8 +998,10 @@ function parsearGviz(resp){
           obj[col]=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
         }
       } else if(col==='Fecha'||col==='Fecha Salida'||col==='Fecha de vencimiento'||col==='Fecha Compromiso'){
-        // Normalizar texto como "1/5/2026" → "01/05/2026"
         obj[col]=normalizarFecha(String(v));
+      } else if(col==='Entrada'||col==='Salida'){
+        // Limpiar horas con "a. m." / "p. m."
+        obj[col]=normalizarHora(String(v));
       } else {
         obj[col]=v;
       }
@@ -1226,6 +1310,39 @@ async function sincronizarSilencioso() {
         });
       });
 
+    // Guardar salidas de días anteriores en histDias automáticamente
+    const diasEnSheets = {};
+    historial.forEach(h => {
+      if (h.fechaSalida && h.fechaSalida !== hoyStr) {
+        if (!diasEnSheets[h.fechaSalida]) diasEnSheets[h.fechaSalida] = [];
+        diasEnSheets[h.fechaSalida].push(h);
+      }
+    });
+
+    Object.entries(diasEnSheets).forEach(([fecha, items]) => {
+      const yaGuardado = histDias.find(d => d.fecha === fecha);
+      if (!yaGuardado && items.length > 0) {
+        const sumOf = arr => arr.reduce((s,h) => s + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0), 0);
+        const byOp = {};
+        items.forEach(h => { byOp[h.operador] = (byOp[h.operador]||0) + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0); });
+        histDias.push({
+          fecha,
+          items,
+          totalDiarios: sumOf(items.filter(h => (h.tarifa||'').toLowerCase()==='diario')),
+          totalMensuales: sumOf(items.filter(h => (h.tarifa||'').toLowerCase()==='mensual')),
+          total: sumOf(items),
+          byOp,
+          snapActivos: [],
+          snapHora: '',
+          snapTotal: 0,
+          cierreAutomatico: true
+        });
+      }
+    });
+
+    // El historial local solo guarda el día de hoy
+    historial = historial.filter(h => h.fechaSalida === hoyStr);
+
     save();
     renderAll();
     setSyncState('ok', 'Sincronizado');
@@ -1239,6 +1356,46 @@ document.getElementById('fechaHoy').textContent=hoyLong();
 if(!localStorage.getItem('pk_sid')) localStorage.setItem('pk_sid',SHEET_ID_DEFAULT);
 if(!localStorage.getItem('pk_url')) localStorage.setItem('pk_url',WEB_APP_DEFAULT);
 cargarConfig();
+// Al arrancar, verificar si cambió el día y cerrar el anterior automáticamente
+(function verificarCambioDia() {
+  const hoyStr = fechaStr();
+  const ultimaFecha = localStorage.getItem('pk_ultima_fecha') || hoyStr;
+
+  if (ultimaFecha !== hoyStr) {
+    // Cambió el día — guardar el historial del día anterior si existe
+    const histLocal = JSON.parse(localStorage.getItem('pk_hist') || '[]');
+    const itemsAyer = histLocal.filter(h => h.fechaSalida === ultimaFecha);
+
+    if (itemsAyer.length > 0) {
+      const histDiasLocal = JSON.parse(localStorage.getItem('pk_histDias') || '[]');
+      const yaGuardado = histDiasLocal.find(d => d.fecha === ultimaFecha);
+
+      if (!yaGuardado) {
+        const sumOf = arr => arr.reduce((s,h) => s + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0), 0);
+        const byOp = {};
+        itemsAyer.forEach(h => { byOp[h.operador] = (byOp[h.operador]||0) + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0); });
+
+        histDiasLocal.push({
+          fecha: ultimaFecha,
+          items: itemsAyer,
+          totalDiarios: sumOf(itemsAyer.filter(h => (h.tarifa||'').toLowerCase()==='diario')),
+          totalMensuales: sumOf(itemsAyer.filter(h => (h.tarifa||'').toLowerCase()==='mensual')),
+          total: sumOf(itemsAyer),
+          byOp,
+          snapActivos: [],
+          snapHora: '23:59',
+          snapTotal: 0,
+          cierrAutomatico: true
+        });
+        localStorage.setItem('pk_histDias', JSON.stringify(histDiasLocal));
+      }
+    }
+  }
+
+  // Actualizar fecha actual
+  localStorage.setItem('pk_ultima_fecha', hoyStr);
+})();
+
 // Limpiar historial local — Sheets es la fuente de verdad
 historial = [];
 activos = [];
@@ -1247,8 +1404,17 @@ localStorage.removeItem('pk_hist');
 renderAll();
 // Sync inmediato al abrir
 sincronizarSilencioso();
-// Sync automático cada 30 segundos
+// Sync automático cada 10 segundos
 setInterval(syncLoop, 10000);
+// Verificar cambio de día cada minuto
+setInterval(() => {
+  const hoy = fechaStr();
+  const ultima = localStorage.getItem('pk_ultima_fecha') || hoy;
+  if (ultima !== hoy) {
+    localStorage.setItem('pk_ultima_fecha', hoy);
+    sincronizarSilencioso();
+  }
+}, 60000);
 </script>
 </body>
 </html>
