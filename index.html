@@ -1281,43 +1281,43 @@ async function sincronizarSilencioso() {
       }))
       .filter(r => r.placa);
 
-    // Historial de hoy: reemplazar completamente desde Sheets
+    // Procesar TODAS las salidas de Sheets — separar hoy vs días anteriores
     historial = historial.filter(h => h.fechaSalida !== hoyStr);
+    const diasEnSheets = {};
 
     rows
       .filter(r => r['Salida'] && r['Salida'] !== '' && (r['Placa']||'').trim())
       .forEach(r => {
         const placa = (r['Placa']||'').trim();
         if (!placa) return;
-        // Fecha de salida: usar Fecha Salida si existe, sino Fecha de entrada como fallback
+        // Fecha de salida: SOLO Fecha Salida, nunca fallback a fecha de entrada
         const fechaSalida = (r['Fecha Salida'] && r['Fecha Salida'] !== '')
-          ? r['Fecha Salida']
-          : (r['Fecha'] || '');
-        // Solo salidas de hoy
-        if (fechaSalida !== hoyStr) return;
-        historial.push({
+          ? r['Fecha Salida'] : '';
+        if (!fechaSalida) return; // sin fecha de salida no sabemos a qué día pertenece
+
+        const item = {
           placa,
           tarifa:           (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
           precio:           parseFloat(r['Precio'])||0,
           horaEntrada:      r['Entrada']||'',
           fechaEntrada:     r['Fecha']||'',
           horaSalida:       r['Salida']||'',
-          fechaSalida:      hoyStr,
+          fechaSalida,
           operador:         r['Operador']||'',
           fechaVencimiento: r['Fecha de vencimiento']||'',
           deudaFinal:       parseFloat(r['Deuda Acumulada'])||0,
           minutos:          0
-        });
-      });
+        };
 
-    // Guardar salidas de días anteriores en histDias automáticamente
-    const diasEnSheets = {};
-    historial.forEach(h => {
-      if (h.fechaSalida && h.fechaSalida !== hoyStr) {
-        if (!diasEnSheets[h.fechaSalida]) diasEnSheets[h.fechaSalida] = [];
-        diasEnSheets[h.fechaSalida].push(h);
-      }
-    });
+        if (fechaSalida === hoyStr) {
+          // Salida de hoy → historial del día
+          historial.push(item);
+        } else {
+          // Salida de otro día → agrupar para histDias
+          if (!diasEnSheets[fechaSalida]) diasEnSheets[fechaSalida] = [];
+          diasEnSheets[fechaSalida].push(item);
+        }
+      });
 
     Object.entries(diasEnSheets).forEach(([fecha, items]) => {
       const yaGuardado = histDias.find(d => d.fecha === fecha);
