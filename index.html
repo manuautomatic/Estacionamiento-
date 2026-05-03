@@ -794,25 +794,91 @@ function renderGerencia(){
       </div>`;
   }
 
-  // Historial días anteriores
+  // Historial días anteriores — incluyendo días de Sheets no exportados manualmente
   const elHist=document.getElementById('mgmtHistorial');
-  if(!histDias.length){
-    elHist.innerHTML='<div class="empty">Sin días exportados aún. Usa "Exportar y cerrar día" al final del día.</div>';
+
+  // Combinar histDias guardados + día de hoy si tiene movimientos
+  const todosDiasHist = [...histDias].sort((a,b)=>{
+    const pa=a.fecha.split('/'), pb=b.fecha.split('/');
+    return new Date(pb[2],pb[1]-1,pb[0]) - new Date(pa[2],pa[1]-1,pa[0]);
+  });
+
+  if(!todosDiasHist.length){
+    elHist.innerHTML='<div class="empty">Sin días anteriores registrados aún.</div>';
   } else {
-    elHist.innerHTML=[...histDias].reverse().map((d,idx)=>`
-      <div class="history-day">
-        <div class="history-day-header" onclick="toggleDay(${histDias.length-1-idx})">
-          <span>${d.fecha}</span>
-          <span style="color:#0F6E56;font-weight:600">S/ ${d.total.toFixed(2)} · ${d.items.length} salidas</span>
-        </div>
-        <div class="history-day-body" id="hday-${histDias.length-1-idx}">
-          <div style="padding:.75rem 1rem">
-            <div class="report-row"><span class="mini">Diarios (${d.items.filter(h=>h.tarifa==='diario').length})</span><span class="mini">S/ ${d.totalDiarios.toFixed(2)}</span></div>
-            <div class="report-row"><span class="mini">Mensuales (${d.items.filter(h=>h.tarifa==='mensual').length})</span><span class="mini">S/ ${d.totalMensuales.toFixed(2)}</span></div>
-            ${d.byOp?Object.entries(d.byOp).map(([op,v])=>`<div class="report-row"><span class="mini">${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join(''):''}
+    elHist.innerHTML=todosDiasHist.map((d,idx)=>{
+      const total=parseFloat(d.total||0);
+      const diarios=d.items.filter(h=>(h.tarifa||'').toLowerCase()==='diario');
+      const mens=d.items.filter(h=>(h.tarifa||'').toLowerCase()==='mensual');
+      const byOp=d.byOp||{};
+      const esAuto=d.cierreAutomatico||d.cierrAutomatico;
+
+      return `<div class="history-day">
+        <div class="history-day-header" onclick="toggleDayMgmt(${idx})">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-weight:700">${d.fecha}</span>
+            ${esAuto?'<span class="badge badge-gray" style="font-size:10px">Auto</span>':'<span class="badge badge-green" style="font-size:10px">Exportado</span>'}
+          </div>
+          <div style="text-align:right">
+            <div style="color:#0F6E56;font-weight:700">S/ ${total.toFixed(2)}</div>
+            <div class="mini">${d.items.length} salidas</div>
           </div>
         </div>
-      </div>`).join('');
+        <div class="history-day-body" id="mgmtday-${idx}">
+          <div style="padding:.875rem 1rem">
+            <!-- Resumen -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:.875rem">
+              <div style="background:#f8fffc;border-radius:6px;padding:8px;text-align:center">
+                <div class="mini">Diarios</div>
+                <div style="font-weight:700;color:#0F6E56">S/ ${parseFloat(d.totalDiarios||0).toFixed(2)}</div>
+                <div class="mini">${diarios.length} salidas</div>
+              </div>
+              <div style="background:#E6F1FB;border-radius:6px;padding:8px;text-align:center">
+                <div class="mini">Mensuales</div>
+                <div style="font-weight:700;color:#185FA5">S/ ${parseFloat(d.totalMensuales||0).toFixed(2)}</div>
+                <div class="mini">${mens.length} salidas</div>
+              </div>
+              <div style="background:#E1F5EE;border-radius:6px;padding:8px;text-align:center">
+                <div class="mini">Total caja</div>
+                <div style="font-weight:700;color:#0F6E56">S/ ${total.toFixed(2)}</div>
+                <div class="mini">${d.items.length} total</div>
+              </div>
+            </div>
+            <!-- Por operador -->
+            ${Object.keys(byOp).length?`
+            <div style="margin-bottom:.875rem">
+              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Por operador</div>
+              ${Object.entries(byOp).map(([op,v])=>`
+                <div class="report-row">
+                  <span class="mini">${op}</span>
+                  <span class="mini" style="font-weight:600">S/ ${parseFloat(v).toFixed(2)}</span>
+                </div>`).join('')}
+            </div>`:''}
+            <!-- Detalle de salidas -->
+            <div>
+              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Detalle de salidas</div>
+              <div class="overflow-x">
+                <table>
+                  <thead><tr>
+                    <th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Precio</th><th>Operador</th>
+                  </tr></thead>
+                  <tbody>
+                    ${d.items.map(h=>`<tr>
+                      <td><span class="plate">${h.placa}</span></td>
+                      <td><span class="badge ${(h.tarifa||'').toLowerCase()==='diario'?'badge-green':'badge-blue'}">${h.tarifa}</span></td>
+                      <td>${h.horaEntrada}<br><span class="mini">${h.fechaEntrada}</span></td>
+                      <td>${h.horaSalida||'—'}</td>
+                      <td>S/ ${parseFloat(h.precio||0).toFixed(2)}</td>
+                      <td class="mini">${h.operador||'—'}</td>
+                    </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   // Snapshot de cierre (último día exportado)
@@ -872,6 +938,10 @@ function renderGerencia(){
 
 function toggleDay(idx){
   const el=document.getElementById('hday-'+idx);
+  if(el) el.classList.toggle('open');
+}
+function toggleDayMgmt(idx){
+  const el=document.getElementById('mgmtday-'+idx);
   if(el) el.classList.toggle('open');
 }
 
