@@ -1052,30 +1052,59 @@ function normalizarFecha(v) {
 
 function parsearGviz(resp){
   if(!resp||!resp.table) return [];
-  const cols=resp.table.cols.map(c=>c.label);
+  const rawCols = resp.table.cols.map(c=>(c.label||'').trim());
+
+  // Índice por nombre canónico — acepta variantes de Fecha Salida y Fecha de vencimiento
+  const colIdx = {};
+  rawCols.forEach((c,i)=>{
+    colIdx[c] = i;
+    if(/fecha.{0,5}salida/i.test(c))      colIdx['Fecha Salida'] = i;
+    if(/fecha.{0,5}venc/i.test(c))        colIdx['Fecha de vencimiento'] = i;
+    if(/fecha.{0,5}comp/i.test(c))        colIdx['Fecha Compromiso'] = i;
+  });
+
+  const FECHA_COLS = new Set(['Fecha','Fecha Salida','Fecha de vencimiento','Fecha Compromiso']);
+  const HORA_COLS  = new Set(['Entrada','Salida']);
+
+  function parseCell(v, col){
+    if(v === null || v === undefined || v === '') return '';
+    const s = String(v);
+    if(s.startsWith('Date(')){
+      const parts = s.replace('Date(','').replace(')','').split(',').map(Number);
+      const d = new Date(parts[0],parts[1],parts[2]||1,parts[3]||0,parts[4]||0,parts[5]||0);
+      if(HORA_COLS.has(col)) return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+    }
+    if(FECHA_COLS.has(col)) return normalizarFecha(s);
+    if(HORA_COLS.has(col))  return normalizarHora(s);
+    return v;
+  }
+
   return (resp.table.rows||[]).map(row=>{
     const obj={};
-    row.c.forEach((cell,i)=>{
-      if(!cell||cell.v===null||cell.v===undefined){obj[cols[i]]='';return;}
-      const v=cell.v;
-      const col=cols[i];
-      if(typeof v==='string'&&v.startsWith('Date(')){
-        const parts=v.replace('Date(','').replace(')','').split(',').map(Number);
-        const d=new Date(parts[0],parts[1],parts[2]||1,parts[3]||0,parts[4]||0,parts[5]||0);
-        if(col==='Entrada'||col==='Salida'){
-          obj[col]=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-        } else {
-          obj[col]=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
-        }
-      } else if(col==='Fecha'||col==='Fecha Salida'||col==='Fecha de vencimiento'||col==='Fecha Compromiso'){
-        obj[col]=normalizarFecha(String(v));
-      } else if(col==='Entrada'||col==='Salida'){
-        // Limpiar horas con "a. m." / "p. m."
-        obj[col]=normalizarHora(String(v));
-      } else {
-        obj[col]=v;
-      }
+    rawCols.forEach((col,i)=>{
+      const cell = row.c ? row.c[i] : null;
+      obj[col] = cell && cell.v !== null && cell.v !== undefined ? parseCell(cell.v, col) : '';
     });
+    // Asegurar Fecha Salida canónica
+    if(!obj['Fecha Salida'] && colIdx['Fecha Salida'] !== undefined){
+      const cell = row.c ? row.c[colIdx['Fecha Salida']] : null;
+      obj['Fecha Salida'] = cell && cell.v ? normalizarFecha(String(cell.v)) : '';
+    }
+
+    // Asegurar Salida canónica — leer también por índice (col F = índice 5)
+    // Por si el nombre de columna tiene caracteres especiales
+    if(!obj['Salida']){
+      const si = colIdx['Salida'] !== undefined ? colIdx['Salida'] : 5;
+      const cell = row.c ? row.c[si] : null;
+      if(cell && cell.v !== null && cell.v !== undefined && cell.v !== ''){
+        const raw = String(cell.v);
+        obj['Salida'] = raw.startsWith('Date(')
+          ? parseCell(cell.v, 'Salida')
+          : normalizarHora(raw);
+      }
+    }
+
     return obj;
   });
 }
@@ -1330,12 +1359,16 @@ async function sincronizarSilencioso() {
     const hoyStr = fechaStr();
 
     // Activos: vehículos sin salida en Sheets
+    // Un vehículo tiene salida si: tiene hora de Salida O tiene Fecha Salida registrada
     activos = rows
       .filter(r => {
-        const sinSalida = !r['Salida'] || r['Salida']==='' || r['Salida']===null || r['Salida']===undefined;
         const tienePlaca = (r['Placa']||'').trim() !== '';
         const noEliminado = r['Eliminado']!=='SÍ' && r['Eliminado']!=='SI' && r['Eliminado']!==true;
-        return sinSalida && tienePlaca && noEliminado;
+        // Verificar si tiene salida por hora O por fecha de salida
+        const horaSalida = (r['Salida']||'').toString().trim();
+        const fechaSalidaVal = (r['Fecha Salida']||'').toString().trim();
+        const tieneSalida = horaSalida !== '' || fechaSalidaVal !== '';
+        return !tieneSalida && tienePlaca && noEliminado;
       })
       .map(r => ({
         placa:            (r['Placa']||'').trim(),
@@ -1466,11 +1499,7 @@ cargarConfig();
   localStorage.setItem('pk_ultima_fecha', hoyStr);
 })();
 
-// Limpiar historial local — Sheets es la fuente de verdad
-historial = [];
-activos = [];
-localStorage.removeItem('pk_activos');
-localStorage.removeItem('pk_hist');
+// Mostrar lo que hay en cache local mientras llega el sync
 renderAll();
 // Sync inmediato al abrir
 sincronizarSilencioso();
