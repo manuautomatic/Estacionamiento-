@@ -435,20 +435,26 @@ function diasParaVencer(fv) {
 
 // ── DEUDA ────────────────────────────────────────────────────
 function infoDeuda(a) {
-  const tsE=parsearTs(a.fechaEntrada,a.horaEntrada);
-  const tar=(a.tarifa||'').toLowerCase().trim();
-  if(tar==='diario'){
-    const de=Math.max(0,Math.floor((Date.now()-tsE)/MS_DIA));
-    return {esAcumulado:de>=1,diasExtra:de,deuda:de*TAR_D()};
+  const tsE = parsearTs(a.fechaEntrada, a.horaEntrada);
+  const tar = (a.tarifa||'').toLowerCase().trim();
+  // Usar el precio del vehículo como base de acumulación, no la tarifa global
+  const precioDia = parseFloat(a.precio) || TAR_D();
+
+  if (tar === 'diario') {
+    const de = Math.max(0, Math.floor((Date.now() - tsE) / MS_DIA));
+    return { esAcumulado: de >= 1, diasExtra: de, deuda: de * precioDia };
   }
-  if(tar==='mensual'){
-    const fv=a.fechaVencimiento||'';
-    if(!fv) return {esAcumulado:false,diasExtra:0,deuda:0};
-    const dias=diasParaVencer(fv);
-    if(dias<0){const dv=Math.abs(dias);return {esAcumulado:true,diasExtra:dv,deuda:dv*TAR_D()};}
-    return {esAcumulado:false,diasExtra:0,deuda:0};
+  if (tar === 'mensual') {
+    const fv = a.fechaVencimiento || '';
+    if (!fv) return { esAcumulado: false, diasExtra: 0, deuda: 0 };
+    const dias = diasParaVencer(fv);
+    if (dias < 0) {
+      const dv = Math.abs(dias);
+      return { esAcumulado: true, diasExtra: dv, deuda: dv * precioDia };
+    }
+    return { esAcumulado: false, diasExtra: 0, deuda: 0 };
   }
-  return {esAcumulado:false,diasExtra:0,deuda:0};
+  return { esAcumulado: false, diasExtra: 0, deuda: 0 };
 }
 function totalDeuda(){return activos.reduce((s,a)=>s+infoDeuda(a).deuda,0);}
 
