@@ -888,7 +888,7 @@ function renderGerencia(){
                     ${d.activosDia.map(a=>`<tr class="ok-row">
                       <td><span class="plate">${a.placa}</span></td>
                       <td><span class="badge ${(a.tarifa||'').toLowerCase()==='mensual'?'badge-blue':'badge-amber'}">${a.tarifa}</span></td>
-                      <td>${a.horaEntrada}</td>
+                      <td>${a.horaEntrada}<br><span class="mini">${a.fechaEntrada||''}</span></td>
                       <td>S/ ${parseFloat(a.precio||0).toFixed(2)}</td>
                       <td class="mini">${a.operador||'—'}</td>
                     </tr>`).join('')}
@@ -1446,19 +1446,33 @@ async function sincronizarSilencioso() {
     Object.entries(diasEnSheets).forEach(([fecha, items]) => {
       const yaGuardadoIdx = histDias.findIndex(d => d.fecha === fecha);
       const yaGuardado = yaGuardadoIdx >= 0 ? histDias[yaGuardadoIdx] : null;
-      // Siempre reconstruir activosDia desde Sheets (puede haberse actualizado)
+      // Vehículos dentro del garaje esa noche:
+      // Entraron en fecha <= fecha del día Y (sin salida O salida posterior a ese día)
       const activosDiaFresh = rows
         .filter(r => {
+          const placa = (r['Placa']||'').trim();
+          if (!placa) return false;
           const fe = (r['Fecha']||'').trim();
+          // Entró ese día o antes
+          if (!fe) return false;
+          const dEntrada = new Date(fe.split('/')[2], fe.split('/')[1]-1, fe.split('/')[0]);
+          const dDia     = new Date(fecha.split('/')[2], fecha.split('/')[1]-1, fecha.split('/')[0]);
+          if (dEntrada > dDia) return false; // entró después, no aplica
+          // Sin salida = sigue dentro
           const sinSalida = !r['Salida'] || r['Salida'] === '';
-          const salidaPosterior = r['Fecha Salida'] && r['Fecha Salida'] !== fecha;
-          return fe === fecha && (r['Placa']||'').trim() && (sinSalida || salidaPosterior);
+          if (sinSalida) return true;
+          // Con salida — verificar si salió después de ese día
+          const fs = (r['Fecha Salida']||'').trim();
+          if (!fs) return false;
+          const dSalida = new Date(fs.split('/')[2], fs.split('/')[1]-1, fs.split('/')[0]);
+          return dSalida > dDia; // salió después de ese día → estaba dentro esa noche
         })
         .map(r => ({
           placa: (r['Placa']||'').trim(),
           tarifa: (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
           precio: parseFloat(r['Precio'])||0,
           horaEntrada: r['Entrada']||'',
+          fechaEntrada: r['Fecha']||'',
           operador: r['Operador']||'',
           fechaVencimiento: r['Fecha de vencimiento']||''
         }));
