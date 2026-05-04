@@ -855,8 +855,8 @@ function renderGerencia(){
                 </div>`).join('')}
             </div>`:''}
             <!-- Detalle de salidas -->
-            <div>
-              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Detalle de salidas</div>
+            <div style="margin-bottom:.875rem">
+              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Salidas del día</div>
               <div class="overflow-x">
                 <table>
                   <thead><tr>
@@ -866,7 +866,7 @@ function renderGerencia(){
                     ${d.items.map(h=>`<tr>
                       <td><span class="plate">${h.placa}</span></td>
                       <td><span class="badge ${(h.tarifa||'').toLowerCase()==='diario'?'badge-green':'badge-blue'}">${h.tarifa}</span></td>
-                      <td>${h.horaEntrada}<br><span class="mini">${h.fechaEntrada}</span></td>
+                      <td>${h.horaEntrada}<br><span class="mini">${h.fechaEntrada||d.fecha}</span></td>
                       <td>${h.horaSalida||'—'}</td>
                       <td>S/ ${parseFloat(h.precio||0).toFixed(2)}</td>
                       <td class="mini">${h.operador||'—'}</td>
@@ -875,6 +875,30 @@ function renderGerencia(){
                 </table>
               </div>
             </div>
+
+            <!-- Vehículos que estaban dentro ese día -->
+            ${(d.activosDia && d.activosDia.length) ? `
+            <div>
+              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;color:#185FA5">
+                Dentro del garaje esa noche (${d.activosDia.length})
+              </div>
+              <div class="overflow-x">
+                <table>
+                  <thead><tr>
+                    <th>Placa</th><th>Tipo</th><th>Entrada</th><th>Precio</th><th>Operador</th>
+                  </tr></thead>
+                  <tbody>
+                    ${d.activosDia.map(a=>`<tr class="ok-row">
+                      <td><span class="plate">${a.placa}</span></td>
+                      <td><span class="badge ${(a.tarifa||'').toLowerCase()==='mensual'?'badge-blue':'badge-amber'}">${a.tarifa}</span></td>
+                      <td>${a.horaEntrada}</td>
+                      <td>S/ ${parseFloat(a.precio||0).toFixed(2)}</td>
+                      <td class="mini">${a.operador||'—'}</td>
+                    </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>` : ''}
           </div>
         </div>
       </div>`;
@@ -1428,6 +1452,24 @@ async function sincronizarSilencioso() {
         const sumOf = arr => arr.reduce((s,h) => s + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0), 0);
         const byOp = {};
         items.forEach(h => { byOp[h.operador] = (byOp[h.operador]||0) + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0); });
+        // Snapshot de activos de ese día: vehículos que entraron ese día y aún no han salido
+        // o que entraron ese día y salieron en días siguientes
+        const activosDia = rows
+          .filter(r => {
+            const fechaEntrada = (r['Fecha']||'').trim();
+            const sinSalida = !r['Salida'] || r['Salida'] === '';
+            const salidaPosterior = r['Fecha Salida'] && r['Fecha Salida'] !== fecha;
+            return fechaEntrada === fecha && (r['Placa']||'').trim() && (sinSalida || salidaPosterior);
+          })
+          .map(r => ({
+            placa: (r['Placa']||'').trim(),
+            tarifa: (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+            precio: parseFloat(r['Precio'])||0,
+            horaEntrada: r['Entrada']||'',
+            operador: r['Operador']||'',
+            fechaVencimiento: r['Fecha de vencimiento']||''
+          }));
+
         histDias.push({
           fecha,
           items,
@@ -1435,6 +1477,7 @@ async function sincronizarSilencioso() {
           totalMensuales: sumOf(items.filter(h => (h.tarifa||'').toLowerCase()==='mensual')),
           total: sumOf(items),
           byOp,
+          activosDia,
           snapActivos: [],
           snapHora: '',
           snapTotal: 0,
