@@ -372,23 +372,20 @@ const SHEET_ID_DEFAULT = '175PXAW8nbbRDcltZEl9oiMJOX8SjzItGa58UvWPZizY';
 const WEB_APP_DEFAULT  = 'https://script.google.com/macros/s/AKfycbzSOELx2u3qAzIXAbqbcbZN5XqF63-GmjMhNvZqdzYEZXToWGyRvN8JwCqj2KcH2PdlXw/exec';
 const PASS_GERENCIA    = 'garage2024';
 
-const MAX    = () => parseInt(localStorage.getItem('pk_cap') || '50');
-const WEBURL = () => localStorage.getItem('pk_url') || WEB_APP_DEFAULT;
-const SID    = () => localStorage.getItem('pk_sid') || SHEET_ID_DEFAULT;
-const TAR_D  = () => parseFloat(localStorage.getItem('pk_tDiario')  || '5');
-const TAR_M  = () => parseFloat(localStorage.getItem('pk_tMensual') || '100');
+const MAX    = () => parseInt(document.getElementById('capacidad')?.value || '50');
+const WEBURL = () => WEB_APP_DEFAULT;
+const SID    = () => SHEET_ID_DEFAULT;
+const TAR_D  = () => parseFloat(document.getElementById('tDiario')?.value  || '5');
+const TAR_M  = () => parseFloat(document.getElementById('tMensual')?.value || '100');
 const MS_DIA = 86400000;
 
-let activos   = JSON.parse(localStorage.getItem('pk_activos') || '[]');
-let historial = JSON.parse(localStorage.getItem('pk_hist')    || '[]');
-// histDias: array de objetos {fecha, items[], totalDiarios, totalMensuales, total}
-let histDias  = JSON.parse(localStorage.getItem('pk_histDias') || '[]');
+let activos   = [];
+let historial = [];
+let histDias  = [];
 let pagoActual = null;
 
 function save() {
-  localStorage.setItem('pk_activos',  JSON.stringify(activos));
-  localStorage.setItem('pk_hist',     JSON.stringify(historial));
-  localStorage.setItem('pk_histDias', JSON.stringify(histDias));
+  // Todo viene de Sheets — no usamos localStorage
 }
 
 // ── TIEMPO ───────────────────────────────────────────────────
@@ -1152,7 +1149,7 @@ async function probarConexion(){
   setSyncState('loading','Probando...');
   try {
     const resp=await leerSheetPublico(sid);
-    if(resp&&resp.table){localStorage.setItem('pk_sid',sid);setSyncState('ok','Conectado');alert_('alertConfig','Conexión exitosa','success');}
+    if(resp&&resp.table){setSyncState('ok','Conectado');alert_('alertConfig','Conexión exitosa','success');}
     else throw new Error('sin tabla');
   } catch(e){setSyncState('error','Sin conexión');alert_('alertConfig','No se pudo conectar.','error');}
 }
@@ -1166,23 +1163,23 @@ async function enviarASheets(tipo,data){
 
 // ── CONFIG ───────────────────────────────────────────────────
 function guardarConfig(){
-  const url=document.getElementById('webAppUrl')?.value.trim()||'';
-  const sid=document.getElementById('sheetId')?.value.trim()||'';
-  const cap=document.getElementById('capacidad')?.value||'';
+  // Las tarifas se actualizan en el selector pero no se persisten
+  // La URL y Sheet ID son hardcodeadas
   const td=document.getElementById('tDiario')?.value||'';
   const tm=document.getElementById('tMensual')?.value||'';
-  if(url) localStorage.setItem('pk_url',url);
-  if(sid) localStorage.setItem('pk_sid',sid);
-  if(cap) localStorage.setItem('pk_cap',cap);
-  if(td)  localStorage.setItem('pk_tDiario',td);
-  if(tm)  localStorage.setItem('pk_tMensual',tm);
   const opts=document.getElementById('tarifa').options;
   if(td) opts[0].text='Diario — S/ '+parseFloat(td).toFixed(2);
   if(tm) opts[1].text='Mensual — S/ '+parseFloat(tm).toFixed(2);
 }
 
 function cargarConfig(){
-  const map={webAppUrl:localStorage.getItem('pk_url')||WEB_APP_DEFAULT,sheetId:localStorage.getItem('pk_sid')||SHEET_ID_DEFAULT,capacidad:localStorage.getItem('pk_cap')||'50',tDiario:localStorage.getItem('pk_tDiario')||'5',tMensual:localStorage.getItem('pk_tMensual')||'100'};
+  const map={
+    webAppUrl: WEB_APP_DEFAULT,
+    sheetId:   SHEET_ID_DEFAULT,
+    capacidad: '50',
+    tDiario:   '5',
+    tMensual:  '100'
+  };
   Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val;});
 }
 
@@ -1324,10 +1321,10 @@ function jsonResp(obj, cb) {
 
 // ── COLA DE PENDIENTES ───────────────────────────────────────
 // Operaciones que no llegaron a Sheets se guardan y reintentan
-let pendientes = JSON.parse(localStorage.getItem('pk_pending') || '[]');
+let pendientes = [];
 
 function savePendientes() {
-  localStorage.setItem('pk_pending', JSON.stringify(pendientes));
+  // Sin localStorage
 }
 
 async function enviarConReintento(tipo, data) {
@@ -1447,8 +1444,31 @@ async function sincronizarSilencioso() {
       });
 
     Object.entries(diasEnSheets).forEach(([fecha, items]) => {
-      const yaGuardado = histDias.find(d => d.fecha === fecha);
-      if (!yaGuardado && items.length > 0) {
+      const yaGuardadoIdx = histDias.findIndex(d => d.fecha === fecha);
+      const yaGuardado = yaGuardadoIdx >= 0 ? histDias[yaGuardadoIdx] : null;
+      // Siempre reconstruir activosDia desde Sheets (puede haberse actualizado)
+      const activosDiaFresh = rows
+        .filter(r => {
+          const fe = (r['Fecha']||'').trim();
+          const sinSalida = !r['Salida'] || r['Salida'] === '';
+          const salidaPosterior = r['Fecha Salida'] && r['Fecha Salida'] !== fecha;
+          return fe === fecha && (r['Placa']||'').trim() && (sinSalida || salidaPosterior);
+        })
+        .map(r => ({
+          placa: (r['Placa']||'').trim(),
+          tarifa: (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+          precio: parseFloat(r['Precio'])||0,
+          horaEntrada: r['Entrada']||'',
+          operador: r['Operador']||'',
+          fechaVencimiento: r['Fecha de vencimiento']||''
+        }));
+
+      // Si ya existe, solo actualizar activosDia
+      if (yaGuardado) {
+        histDias[yaGuardadoIdx].activosDia = activosDiaFresh;
+        return;
+      }
+      if (items.length > 0) {
         const sumOf = arr => arr.reduce((s,h) => s + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0), 0);
         const byOp = {};
         items.forEach(h => { byOp[h.operador] = (byOp[h.operador]||0) + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0); });
@@ -1477,7 +1497,7 @@ async function sincronizarSilencioso() {
           totalMensuales: sumOf(items.filter(h => (h.tarifa||'').toLowerCase()==='mensual')),
           total: sumOf(items),
           byOp,
-          activosDia,
+          activosDia: activosDiaFresh,
           snapActivos: [],
           snapHora: '',
           snapTotal: 0,
@@ -1499,64 +1519,22 @@ async function sincronizarSilencioso() {
 
 // ── INIT ─────────────────────────────────────────────────────
 document.getElementById('fechaHoy').textContent=hoyLong();
-if(!localStorage.getItem('pk_sid')) localStorage.setItem('pk_sid',SHEET_ID_DEFAULT);
-if(!localStorage.getItem('pk_url')) localStorage.setItem('pk_url',WEB_APP_DEFAULT);
+
 cargarConfig();
-// Al arrancar, verificar si cambió el día y cerrar el anterior automáticamente
-(function verificarCambioDia() {
-  const hoyStr = fechaStr();
-  const ultimaFecha = localStorage.getItem('pk_ultima_fecha') || hoyStr;
+// ── INIT LIMPIO — todo viene de Sheets, sin localStorage ────
+// Variables en memoria (se pierden al recargar, pero Sheets las repone en segundos)
+activos  = [];
+historial = [];
+histDias  = [];
+pendientes = [];
 
-  if (ultimaFecha !== hoyStr) {
-    // Cambió el día — guardar el historial del día anterior si existe
-    const histLocal = JSON.parse(localStorage.getItem('pk_hist') || '[]');
-    const itemsAyer = histLocal.filter(h => h.fechaSalida === ultimaFecha);
-
-    if (itemsAyer.length > 0) {
-      const histDiasLocal = JSON.parse(localStorage.getItem('pk_histDias') || '[]');
-      const yaGuardado = histDiasLocal.find(d => d.fecha === ultimaFecha);
-
-      if (!yaGuardado) {
-        const sumOf = arr => arr.reduce((s,h) => s + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0), 0);
-        const byOp = {};
-        itemsAyer.forEach(h => { byOp[h.operador] = (byOp[h.operador]||0) + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0); });
-
-        histDiasLocal.push({
-          fecha: ultimaFecha,
-          items: itemsAyer,
-          totalDiarios: sumOf(itemsAyer.filter(h => (h.tarifa||'').toLowerCase()==='diario')),
-          totalMensuales: sumOf(itemsAyer.filter(h => (h.tarifa||'').toLowerCase()==='mensual')),
-          total: sumOf(itemsAyer),
-          byOp,
-          snapActivos: [],
-          snapHora: '23:59',
-          snapTotal: 0,
-          cierrAutomatico: true
-        });
-        localStorage.setItem('pk_histDias', JSON.stringify(histDiasLocal));
-      }
-    }
-  }
-
-  // Actualizar fecha actual
-  localStorage.setItem('pk_ultima_fecha', hoyStr);
-})();
-
-// Mostrar lo que hay en cache local mientras llega el sync
+document.getElementById('fechaHoy').textContent = hoyLong();
+cargarConfig();
 renderAll();
 // Sync inmediato al abrir
 sincronizarSilencioso();
 // Sync automático cada 10 segundos
 setInterval(syncLoop, 10000);
-// Verificar cambio de día cada minuto
-setInterval(() => {
-  const hoy = fechaStr();
-  const ultima = localStorage.getItem('pk_ultima_fecha') || hoy;
-  if (ultima !== hoy) {
-    localStorage.setItem('pk_ultima_fecha', hoy);
-    sincronizarSilencioso();
-  }
-}, 60000);
 </script>
 </body>
 </html>
