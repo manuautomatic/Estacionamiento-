@@ -147,7 +147,7 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
           <span class="sec-title" style="border:none;padding:0;margin:0">Registrar entrada</span>
         </div>
         <div id="alertForm"></div>
-        <div class="form-group"><label>Placa</label><input type="text" id="plate" placeholder="ABC-123" maxlength="20"></div>
+        <div class="form-group"><label>Placa</label><input type="text" id="plate" placeholder="ABC-123" maxlength="8"></div>
         <div class="form-group">
           <label>Tipo</label>
           <select id="tarifa" onchange="onTarifaChange()">
@@ -157,9 +157,8 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
         </div>
         <div class="form-group"><label>Precio (S/)</label><input type="number" id="precio" value="5" step="0.50" min="0"></div>
         <div class="form-group" id="grupoVenc" style="display:none">
-          <label>Fecha límite de pago <span style="color:#888780;font-weight:400">(editable)</span></label>
-          <input type="date" id="fechaVenc" style="text-transform:none">
-          <div class="mini" style="margin-top:3px">Por defecto 30 días · puedes cambiarla</div>
+          <label>Fecha límite de pago (30 días)</label>
+          <input type="text" id="fechaVenc" readonly style="background:#f4f3f0;color:#5F5E5A;text-transform:none">
         </div>
         <div class="form-group"><label>Observación</label><input type="text" id="obs" placeholder="opcional" style="text-transform:none"></div>
         <button class="btn btn-primary" onclick="registrarEntrada()">Registrar entrada</button>
@@ -176,17 +175,9 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
       <!-- RESUMEN DEL DÍA (vista operador) -->
       <div class="card">
         <div class="sec-hdr" style="border-bottom:1px solid #e0dfd8">
-          <span class="sec-title" style="border:none;padding:0;margin:0">Caja de hoy</span>
+          <span class="sec-title" style="border:none;padding:0;margin:0">Resumen del día</span>
         </div>
         <div id="resumenDia"></div>
-      </div>
-
-      <!-- HISTORIAL DE CAJAS ANTERIORES -->
-      <div class="card">
-        <div class="sec-hdr" style="border-bottom:1px solid #e0dfd8">
-          <span class="sec-title" style="border:none;padding:0;margin:0">Cajas anteriores</span>
-        </div>
-        <div id="cajasAnteriores"></div>
       </div>
     </div>
 
@@ -314,18 +305,6 @@ select#operatorGlobal{width:auto;padding:6px 10px;font-size:13px}
         <div id="mgmtResumenHoy"></div>
       </div>
 
-      <!-- Snapshot de cierre -->
-      <div class="card">
-        <div class="sec-hdr">
-          <span class="sec-title" style="color:#185FA5">Cierre de puerta — vehículos que quedan</span>
-          <span class="mini" id="snapHora"></span>
-        </div>
-        <div class="mini" style="margin-bottom:.75rem">Vehículos dentro al momento de exportar · pasan al día siguiente</div>
-        <div id="mgmtSnapshot">
-          <div class="empty">Exporta el día para ver el snapshot de cierre</div>
-        </div>
-      </div>
-
       <!-- Historial de días anteriores -->
       <div class="card">
         <div class="sec-hdr">
@@ -372,34 +351,28 @@ const SHEET_ID_DEFAULT = '175PXAW8nbbRDcltZEl9oiMJOX8SjzItGa58UvWPZizY';
 const WEB_APP_DEFAULT  = 'https://script.google.com/macros/s/AKfycbzSOELx2u3qAzIXAbqbcbZN5XqF63-GmjMhNvZqdzYEZXToWGyRvN8JwCqj2KcH2PdlXw/exec';
 const PASS_GERENCIA    = 'garage2024';
 
-const MAX    = () => parseInt(document.getElementById('capacidad')?.value || '50');
-const WEBURL = () => WEB_APP_DEFAULT;
-const SID    = () => SHEET_ID_DEFAULT;
-const TAR_D  = () => parseFloat(document.getElementById('tDiario')?.value  || '5');
-const TAR_M  = () => parseFloat(document.getElementById('tMensual')?.value || '100');
+const MAX    = () => parseInt(localStorage.getItem('pk_cap') || '50');
+const WEBURL = () => localStorage.getItem('pk_url') || WEB_APP_DEFAULT;
+const SID    = () => localStorage.getItem('pk_sid') || SHEET_ID_DEFAULT;
+const TAR_D  = () => parseFloat(localStorage.getItem('pk_tDiario')  || '5');
+const TAR_M  = () => parseFloat(localStorage.getItem('pk_tMensual') || '100');
 const MS_DIA = 86400000;
 
-let activos   = [];
-let historial = [];
-let histDias  = [];
+let activos   = JSON.parse(localStorage.getItem('pk_activos') || '[]');
+let historial = JSON.parse(localStorage.getItem('pk_hist')    || '[]');
+// histDias: array de objetos {fecha, items[], totalDiarios, totalMensuales, total}
+let histDias  = JSON.parse(localStorage.getItem('pk_histDias') || '[]');
 let pagoActual = null;
 
 function save() {
-  // Todo viene de Sheets — no usamos localStorage
+  localStorage.setItem('pk_activos',  JSON.stringify(activos));
+  localStorage.setItem('pk_hist',     JSON.stringify(historial));
+  localStorage.setItem('pk_histDias', JSON.stringify(histDias));
 }
 
 // ── TIEMPO ───────────────────────────────────────────────────
-function horaStr() {
-  const d = new Date();
-  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-}
-function fechaStr() {
-  // Formato fijo DD/MM/YYYY para que coincida siempre con lo que viene de Sheets
-  const d = new Date();
-  return String(d.getDate()).padStart(2,'0') + '/' +
-         String(d.getMonth()+1).padStart(2,'0') + '/' +
-         d.getFullYear();
-}
+function horaStr()  { return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
+function fechaStr() { return new Date().toLocaleDateString('es-PE'); }
 function hoyLong()  { return new Date().toLocaleDateString('es-PE',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
 
 function parsearTs(fecha, hora) {
@@ -419,12 +392,6 @@ function duracion(m) {
   return Math.floor(m/1440)+'d '+Math.floor((m%1440)/60)+'h';
 }
 function fechaVencMensual() {return new Date(Date.now()+30*MS_DIA).toLocaleDateString('es-PE');}
-function inputDateToLocal(val) {
-  // Convierte YYYY-MM-DD a DD/MM/YYYY
-  if(!val) return '';
-  const [y,m,d]=val.split('-');
-  return d+'/'+m+'/'+y;
-}
 function diasParaVencer(fv) {
   try {
     const p=fv.split('/');
@@ -435,26 +402,19 @@ function diasParaVencer(fv) {
 
 // ── DEUDA ────────────────────────────────────────────────────
 function infoDeuda(a) {
-  const tsE = parsearTs(a.fechaEntrada, a.horaEntrada);
-  const tar = (a.tarifa||'').toLowerCase().trim();
-  // Usar el precio del vehículo como base de acumulación, no la tarifa global
-  const precioDia = parseFloat(a.precio) || TAR_D();
-
-  if (tar === 'diario') {
-    const de = Math.max(0, Math.floor((Date.now() - tsE) / MS_DIA));
-    return { esAcumulado: de >= 1, diasExtra: de, deuda: de * precioDia };
+  const tsE=parsearTs(a.fechaEntrada,a.horaEntrada);
+  if(a.tarifa==='diario'){
+    const de=Math.max(0,Math.floor((Date.now()-tsE)/MS_DIA));
+    return {esAcumulado:de>=1,diasExtra:de,deuda:de*TAR_D()};
   }
-  if (tar === 'mensual') {
-    const fv = a.fechaVencimiento || '';
-    if (!fv) return { esAcumulado: false, diasExtra: 0, deuda: 0 };
-    const dias = diasParaVencer(fv);
-    if (dias < 0) {
-      const dv = Math.abs(dias);
-      return { esAcumulado: true, diasExtra: dv, deuda: dv * precioDia };
-    }
-    return { esAcumulado: false, diasExtra: 0, deuda: 0 };
+  if(a.tarifa==='mensual'){
+    const fv=a.fechaVencimiento||'';
+    if(!fv) return {esAcumulado:false,diasExtra:0,deuda:0};
+    const dias=diasParaVencer(fv);
+    if(dias<0){const dv=Math.abs(dias);return {esAcumulado:true,diasExtra:dv,deuda:dv*TAR_D()};}
+    return {esAcumulado:false,diasExtra:0,deuda:0};
   }
-  return { esAcumulado: false, diasExtra: 0, deuda: 0 };
+  return {esAcumulado:false,diasExtra:0,deuda:0};
 }
 function totalDeuda(){return activos.reduce((s,a)=>s+infoDeuda(a).deuda,0);}
 
@@ -463,14 +423,8 @@ function onTarifaChange(){
   const val=document.getElementById('tarifa').value;
   document.getElementById('precio').value=val==='mensual'?TAR_M().toFixed(2):TAR_D().toFixed(2);
   const grp=document.getElementById('grupoVenc');
-  if(val==='mensual'){
-    grp.style.display='block';
-    // Formato YYYY-MM-DD para input type=date
-    const d=new Date(Date.now()+30*MS_DIA);
-    const mm=String(d.getMonth()+1).padStart(2,'0');
-    const dd=String(d.getDate()).padStart(2,'0');
-    document.getElementById('fechaVenc').value=d.getFullYear()+'-'+mm+'-'+dd;
-  } else grp.style.display='none';
+  if(val==='mensual'){grp.style.display='block';document.getElementById('fechaVenc').value=fechaVencMensual();}
+  else grp.style.display='none';
 }
 
 function registrarEntrada(){
@@ -481,16 +435,8 @@ function registrarEntrada(){
   const op=document.getElementById('operatorGlobal').value;
   if(!placa){alert_('alertForm','Ingresa la placa','error');return;}
   if(activos.find(a=>a.placa===placa)){alert_('alertForm','Esta placa ya está en el garaje','error');return;}
-  // Evitar reenviar entrada si ya está en historial reciente (menos de 10 min)
-  const entradaReciente=historial.find(h=>h.placa===placa&&(Date.now()-parsearTs(h.fechaSalida,h.horaSalida))<600000);
-  // (solo informativo, no bloquea — el operador decide)
   if(activos.length>=MAX()){alert_('alertForm','Garaje lleno','error');return;}
-  // Leer fecha editable del input y convertir a DD/MM/YYYY
-  let fvenc='';
-  if(tarifa==='mensual'){
-    const inputVal=document.getElementById('fechaVenc').value;
-    fvenc=inputVal?inputDateToLocal(inputVal):fechaVencMensual();
-  }
+  const fvenc=tarifa==='mensual'?fechaVencMensual():'';
   const reg={placa,tarifa,precio,obs,operador:op,horaEntrada:horaStr(),fechaEntrada:fechaStr(),fechaVencimiento:fvenc,deudaAcumulada:0,ts:Date.now()};
   activos.push(reg);
   save();renderAll();
@@ -502,16 +448,8 @@ function registrarEntrada(){
 
 function registrarSalida(idx){
   const reg=activos[idx];if(!reg)return;
-  // Evitar doble salida si ya está en historial
-  const yaExiste=historial.find(h=>h.placa===reg.placa&&h.horaEntrada===reg.horaEntrada&&h.fechaEntrada===reg.fechaEntrada);
-  if(yaExiste){
-    activos.splice(idx,1);
-    save();renderAll();
-    return;
-  }
   const d=infoDeuda(reg);
   const item={...reg,horaSalida:horaStr(),fechaSalida:fechaStr(),minutos:difMin(reg.ts),deudaFinal:d.deuda};
-  // fechaSalida se envía a Sheets para poder filtrar correctamente
   historial.push(item);
   activos.splice(idx,1);
   save();renderAll();
@@ -561,92 +499,30 @@ function confirmarPago(){
 }
 
 // ── RESUMEN DEL DÍA (operador) ───────────────────────────────
-function renderCajasAnteriores(){
-  const el = document.getElementById('cajasAnteriores');
-  if (!el) return;
-
-  // Combinar histDias guardados + salidas de Sheets de días anteriores
-  const diasMostrar = [...histDias].sort((a,b) => {
-    // Ordenar por fecha descendente
-    const pa = a.fecha.split('/'); const pb = b.fecha.split('/');
-    const da = new Date(pa[2],pa[1]-1,pa[0]);
-    const db = new Date(pb[2],pb[1]-1,pb[0]);
-    return db - da;
-  });
-
-  if (!diasMostrar.length) {
-    el.innerHTML = '<div class="empty" style="padding:.75rem">Sin cajas anteriores</div>';
-    return;
-  }
-
-  el.innerHTML = diasMostrar.map(d => {
-    const total = parseFloat(d.total || 0);
-    const diarios = parseFloat(d.totalDiarios || 0);
-    const mens = parseFloat(d.totalMensuales || 0);
-    const nSalidas = (d.items || []).length;
-    const byOp = d.byOp || {};
-    const esAutomatico = d.cierreAutomatico || d.cierrAutomatico;
-
-    return `<div style="padding:8px 0;border-bottom:1px solid #f4f3f0">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:13px;font-weight:600">${d.fecha}</span>
-        <span style="font-size:14px;font-weight:700;color:#0F6E56">S/ ${total.toFixed(2)}</span>
-      </div>
-      <div style="display:flex;gap:12px;margin-bottom:4px">
-        <span class="mini">Diarios: S/ ${diarios.toFixed(2)}</span>
-        <span class="mini">Mensuales: S/ ${mens.toFixed(2)}</span>
-        <span class="mini">${nSalidas} salidas</span>
-      </div>
-      ${Object.keys(byOp).length ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${Object.entries(byOp).map(([op,v])=>`<span class="mini" style="background:#f4f3f0;padding:2px 6px;border-radius:4px">${op}: S/ ${parseFloat(v).toFixed(2)}</span>`).join('')}
-      </div>` : ''}
-    </div>`;
-  }).join('');
-
-  // Total acumulado
-  const totalAcum = diasMostrar.reduce((s,d) => s + parseFloat(d.total||0), 0);
-  const hoyStr = fechaStr();
-  const itemsHoy = historial.filter(h => h.fechaSalida === hoyStr);
-  const totalHoy = itemsHoy.reduce((s,h) => s + calcularIngreso(h), 0);
-  const grandTotal = totalAcum + totalHoy;
-
-  el.innerHTML += `<div style="padding:8px 0;margin-top:4px;border-top:2px solid #e0dfd8;display:flex;justify-content:space-between;align-items:center">
-    <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#444441">Total acumulado</span>
-    <span style="font-size:16px;font-weight:700;color:#0F6E56">S/ ${grandTotal.toFixed(2)}</span>
-  </div>`;
-}
-
 function renderResumenDia(){
   const hoyStr=fechaStr();
   const items=historial.filter(h=>h.fechaSalida===hoyStr);
-  // Normalizar tarifa para comparar
-  const diarios=items.filter(h=>(h.tarifa||'').toLowerCase().trim()==='diario');
-  const mens=items.filter(h=>(h.tarifa||'').toLowerCase().trim()==='mensual');
-  // Ingreso real incluye deuda cobrada al salir
-  const sumOf=arr=>arr.reduce((s,h)=>s+calcularIngreso(h),0);
+  const diarios=items.filter(h=>h.tarifa==='diario');
+  const mens=items.filter(h=>h.tarifa==='mensual');
+  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
   const byOp={};
-  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+calcularIngreso(h);});
+  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
   const el=document.getElementById('resumenDia');
   if(!items.length){el.innerHTML='<div class="empty" style="padding:1rem">Sin movimientos hoy</div>';return;}
   el.innerHTML=`
     <div class="report-row"><span>Diarios (${diarios.length})</span><span>S/ ${sumOf(diarios).toFixed(2)}</span></div>
     <div class="report-row"><span>Mensuales (${mens.length})</span><span>S/ ${sumOf(mens).toFixed(2)}</span></div>
-    <div class="report-row total"><span>EN CAJA HOY</span><span>S/ ${sumOf(items).toFixed(2)}</span></div>
+    <div class="report-row total"><span>TOTAL</span><span>S/ ${sumOf(items).toFixed(2)}</span></div>
     <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
       ${Object.entries(byOp).map(([op,v])=>`<div class="report-row"><span class="mini">${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join('')}
     </div>`;
 }
 
 // ── RENDER GARAJE ────────────────────────────────────────────
-function calcularIngreso(h) {
-  // Ingreso real = precio base + deuda cobrada al salir
-  return parseFloat(h.precio || 0) + parseFloat(h.deudaFinal || 0);
-}
-
 function updateKPIs(){
   const hoyStr=fechaStr();
   const sal=historial.filter(h=>h.fechaSalida===hoyStr);
-  const ing=sal.reduce((s,h)=>s+calcularIngreso(h),0);
+  const ing=sal.reduce((s,h)=>s+parseFloat(h.precio||0),0);
   document.getElementById('kpiDentro').textContent=activos.length;
   document.getElementById('kpiDisp').textContent=Math.max(0,MAX()-activos.length);
   document.getElementById('kpiSalidas').textContent=sal.length;
@@ -659,10 +535,9 @@ function renderGaraje(){
   const normales=[],acumDiar=[],mensuales=[];
   activos.forEach((a,i)=>{
     const d=infoDeuda(a);
-    const tar=(a.tarifa||'').toLowerCase().trim();
-    if(tar==='mensual') mensuales.push({a,i,d});
-    else if(d.esAcumulado) acumDiar.push({a,i,d});
-    else normales.push({a,i,d});
+    if(a.tarifa==='mensual') mensuales.push({a,i,d});
+    else if(d.esAcumulado)   acumDiar.push({a,i,d});
+    else                     normales.push({a,i,d});
   });
   document.getElementById('cntNormal').textContent=normales.length;
   document.getElementById('cntAcum').textContent=acumDiar.length;
@@ -717,7 +592,7 @@ function renderGaraje(){
 }
 
 function renderAll(){
-  updateKPIs();renderGaraje();renderResumenDia();renderCajasAnteriores();
+  updateKPIs();renderGaraje();renderResumenDia();
 }
 
 // ── GERENCIA ─────────────────────────────────────────────────
@@ -751,11 +626,11 @@ function renderGerencia(){
   // Agregar el día actual si tiene movimientos
   const hoyStr=fechaStr();
   const itemsHoy=historial.filter(h=>h.fechaSalida===hoyStr);
-  const sumOf=arr=>arr.reduce((s,h)=>s+calcularIngreso(h),0);
+  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
 
   const totalMes=todosDias.reduce((s,d)=>s+d.total,0)+sumOf(itemsHoy);
-  const totalDiariosMes=todosDias.reduce((s,d)=>s+d.totalDiarios,0)+sumOf(itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='diario'));
-  const totalMensMes=todosDias.reduce((s,d)=>s+d.totalMensuales,0)+sumOf(itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='mensual'));
+  const totalDiariosMes=todosDias.reduce((s,d)=>s+d.totalDiarios,0)+sumOf(itemsHoy.filter(h=>h.tarifa==='diario'));
+  const totalMensMes=todosDias.reduce((s,d)=>s+d.totalMensuales,0)+sumOf(itemsHoy.filter(h=>h.tarifa==='mensual'));
   const diasConMovimiento=todosDias.length+(itemsHoy.length>0?1:0);
 
   document.getElementById('monthKpis').innerHTML=`
@@ -772,12 +647,10 @@ function renderGerencia(){
   if(!itemsHoy.length){
     elHoy.innerHTML='<div class="empty">Sin movimientos registrados hoy</div>';
   } else {
-    const diariosHoy=itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='diario');
-      const mensHoy=itemsHoy.filter(h=>(h.tarifa||'').toLowerCase().trim()==='mensual');
-      elHoy.innerHTML=`
-      <div class="report-row"><span>Diarios (${diariosHoy.length})</span><span>S/ ${sumOf(diariosHoy).toFixed(2)}</span></div>
-      <div class="report-row"><span>Mensuales (${mensHoy.length})</span><span>S/ ${sumOf(mensHoy).toFixed(2)}</span></div>
-      <div class="report-row total"><span>EN CAJA HOY</span><span>S/ ${sumOf(itemsHoy).toFixed(2)}</span></div>
+    elHoy.innerHTML=`
+      <div class="report-row"><span>Diarios (${itemsHoy.filter(h=>h.tarifa==='diario').length})</span><span>S/ ${sumOf(itemsHoy.filter(h=>h.tarifa==='diario')).toFixed(2)}</span></div>
+      <div class="report-row"><span>Mensuales (${itemsHoy.filter(h=>h.tarifa==='mensual').length})</span><span>S/ ${sumOf(itemsHoy.filter(h=>h.tarifa==='mensual')).toFixed(2)}</span></div>
+      <div class="report-row total"><span>TOTAL HOY</span><span>S/ ${sumOf(itemsHoy).toFixed(2)}</span></div>
       <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f4f3f0">
         <div class="mini" style="font-weight:700;margin-bottom:6px">DETALLE SALIDAS DE HOY</div>
         <div class="overflow-x"><table>
@@ -797,150 +670,25 @@ function renderGerencia(){
       </div>`;
   }
 
-  // Historial días anteriores — incluyendo días de Sheets no exportados manualmente
+  // Historial días anteriores
   const elHist=document.getElementById('mgmtHistorial');
-
-  // Combinar histDias guardados + día de hoy si tiene movimientos
-  const todosDiasHist = [...histDias].sort((a,b)=>{
-    const pa=a.fecha.split('/'), pb=b.fecha.split('/');
-    return new Date(pb[2],pb[1]-1,pb[0]) - new Date(pa[2],pa[1]-1,pa[0]);
-  });
-
-  if(!todosDiasHist.length){
-    elHist.innerHTML='<div class="empty">Sin días anteriores registrados aún.</div>';
+  if(!histDias.length){
+    elHist.innerHTML='<div class="empty">Sin días exportados aún. Usa "Exportar y cerrar día" al final del día.</div>';
   } else {
-    elHist.innerHTML=todosDiasHist.map((d,idx)=>{
-      const total=parseFloat(d.total||0);
-      const diarios=d.items.filter(h=>(h.tarifa||'').toLowerCase()==='diario');
-      const mens=d.items.filter(h=>(h.tarifa||'').toLowerCase()==='mensual');
-      const byOp=d.byOp||{};
-      const esAuto=d.cierreAutomatico||d.cierrAutomatico;
-
-      return `<div class="history-day">
-        <div class="history-day-header" onclick="toggleDayMgmt(${idx})">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-weight:700">${d.fecha}</span>
-            ${esAuto?'<span class="badge badge-gray" style="font-size:10px">Auto</span>':'<span class="badge badge-green" style="font-size:10px">Exportado</span>'}
-          </div>
-          <div style="text-align:right">
-            <div style="color:#0F6E56;font-weight:700">S/ ${total.toFixed(2)}</div>
-            <div class="mini">${d.items.length} salidas</div>
+    elHist.innerHTML=[...histDias].reverse().map((d,idx)=>`
+      <div class="history-day">
+        <div class="history-day-header" onclick="toggleDay(${histDias.length-1-idx})">
+          <span>${d.fecha}</span>
+          <span style="color:#0F6E56;font-weight:600">S/ ${d.total.toFixed(2)} · ${d.items.length} salidas</span>
+        </div>
+        <div class="history-day-body" id="hday-${histDias.length-1-idx}">
+          <div style="padding:.75rem 1rem">
+            <div class="report-row"><span class="mini">Diarios (${d.items.filter(h=>h.tarifa==='diario').length})</span><span class="mini">S/ ${d.totalDiarios.toFixed(2)}</span></div>
+            <div class="report-row"><span class="mini">Mensuales (${d.items.filter(h=>h.tarifa==='mensual').length})</span><span class="mini">S/ ${d.totalMensuales.toFixed(2)}</span></div>
+            ${d.byOp?Object.entries(d.byOp).map(([op,v])=>`<div class="report-row"><span class="mini">${op}</span><span class="mini">S/ ${v.toFixed(2)}</span></div>`).join(''):''}
           </div>
         </div>
-        <div class="history-day-body" id="mgmtday-${idx}">
-          <div style="padding:.875rem 1rem">
-            <!-- Resumen -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:.875rem">
-              <div style="background:#f8fffc;border-radius:6px;padding:8px;text-align:center">
-                <div class="mini">Diarios</div>
-                <div style="font-weight:700;color:#0F6E56">S/ ${parseFloat(d.totalDiarios||0).toFixed(2)}</div>
-                <div class="mini">${diarios.length} salidas</div>
-              </div>
-              <div style="background:#E6F1FB;border-radius:6px;padding:8px;text-align:center">
-                <div class="mini">Mensuales</div>
-                <div style="font-weight:700;color:#185FA5">S/ ${parseFloat(d.totalMensuales||0).toFixed(2)}</div>
-                <div class="mini">${mens.length} salidas</div>
-              </div>
-              <div style="background:#E1F5EE;border-radius:6px;padding:8px;text-align:center">
-                <div class="mini">Total caja</div>
-                <div style="font-weight:700;color:#0F6E56">S/ ${total.toFixed(2)}</div>
-                <div class="mini">${d.items.length} total</div>
-              </div>
-            </div>
-            <!-- Por operador -->
-            ${Object.keys(byOp).length?`
-            <div style="margin-bottom:.875rem">
-              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Por operador</div>
-              ${Object.entries(byOp).map(([op,v])=>`
-                <div class="report-row">
-                  <span class="mini">${op}</span>
-                  <span class="mini" style="font-weight:600">S/ ${parseFloat(v).toFixed(2)}</span>
-                </div>`).join('')}
-            </div>`:''}
-            <!-- Detalle de salidas -->
-            <div style="margin-bottom:.875rem">
-              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Salidas del día</div>
-              <div class="overflow-x">
-                <table>
-                  <thead><tr>
-                    <th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Precio</th><th>Operador</th>
-                  </tr></thead>
-                  <tbody>
-                    ${d.items.map(h=>`<tr>
-                      <td><span class="plate">${h.placa}</span></td>
-                      <td><span class="badge ${(h.tarifa||'').toLowerCase()==='diario'?'badge-green':'badge-blue'}">${h.tarifa}</span></td>
-                      <td>${h.horaEntrada}<br><span class="mini">${h.fechaEntrada||d.fecha}</span></td>
-                      <td>${h.horaSalida||'—'}</td>
-                      <td>S/ ${parseFloat(h.precio||0).toFixed(2)}</td>
-                      <td class="mini">${h.operador||'—'}</td>
-                    </tr>`).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- Vehículos que estaban dentro ese día -->
-            ${(d.activosDia && d.activosDia.length) ? `
-            <div>
-              <div class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;color:#185FA5">
-                Dentro del garaje esa noche (${d.activosDia.length})
-              </div>
-              <div class="overflow-x">
-                <table>
-                  <thead><tr>
-                    <th>Placa</th><th>Tipo</th><th>Entrada</th><th>Precio</th><th>Operador</th>
-                  </tr></thead>
-                  <tbody>
-                    ${d.activosDia.map(a=>`<tr class="ok-row">
-                      <td><span class="plate">${a.placa}</span></td>
-                      <td><span class="badge ${(a.tarifa||'').toLowerCase()==='mensual'?'badge-blue':'badge-amber'}">${a.tarifa}</span></td>
-                      <td>${a.horaEntrada}<br><span class="mini">${a.fechaEntrada||''}</span></td>
-                      <td>S/ ${parseFloat(a.precio||0).toFixed(2)}</td>
-                      <td class="mini">${a.operador||'—'}</td>
-                    </tr>`).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>` : ''}
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  // Snapshot de cierre (último día exportado)
-  const ultimoDia=histDias.length?histDias[histDias.length-1]:null;
-  const snapEl=document.getElementById('mgmtSnapshot');
-  const snapHoraEl=document.getElementById('snapHora');
-  if(ultimoDia&&ultimoDia.snapActivos&&ultimoDia.snapActivos.length){
-    snapHoraEl.textContent='Cierre del '+ultimoDia.fecha+' a las '+ultimoDia.snapHora;
-    const snap=ultimoDia.snapActivos;
-    const deudaSnap=snap.reduce((s,a)=>s+parseFloat(a.deuda||0),0);
-    snapEl.innerHTML=`
-      <div style="display:flex;gap:10px;margin-bottom:.875rem;flex-wrap:wrap">
-        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Quedaron dentro</div><div class="month-kpi-value g">${snap.length}</div></div>
-        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Diarios que quedan</div><div class="month-kpi-value">${snap.filter(a=>a.tarifa==='diario').length}</div></div>
-        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Mensuales vigentes</div><div class="month-kpi-value">${snap.filter(a=>a.tarifa==='mensual').length}</div></div>
-        <div class="month-kpi" style="flex:1;min-width:120px"><div class="month-kpi-label">Deuda al cierre (S/)</div><div class="month-kpi-value r">${deudaSnap.toFixed(2)}</div></div>
-      </div>
-      <div class="overflow-x"><table>
-        <thead><tr><th>Placa</th><th>Tipo</th><th>Entró</th><th>Tiempo en garaje</th><th>Precio</th><th>Deuda al cierre</th><th>Pasa al día siguiente</th></tr></thead>
-        <tbody>${snap.map(a=>`<tr class="${a.deuda>0?'acum-row':'ok-row'}">
-          <td><span class="plate">${a.placa}</span></td>
-          <td><span class="badge ${a.tarifa==='diario'?'badge-amber':'badge-blue'}">${a.tarifa}</span></td>
-          <td>${a.horaEntrada} ${a.fechaEntrada}</td>
-          <td class="mini">${duracion(a.tiempoMin||0)}</td>
-          <td>S/ ${parseFloat(a.precio).toFixed(2)}</td>
-          <td>${a.deuda>0?`<span class="red-txt">S/ ${a.deuda.toFixed(2)}</span>`:'<span class="green-txt">—</span>'}</td>
-          <td><span class="badge ${a.tarifa==='mensual'?'badge-green':'badge-amber'}">${a.tarifa==='mensual'?'Sin costo add.':'Acumula deuda'}</span></td>
-        </tr>`).join('')}</tbody>
-      </table></div>`;
-  } else if(ultimoDia&&ultimoDia.snapTotal===0){
-    snapHoraEl.textContent='Cierre del '+ultimoDia.fecha+' a las '+(ultimoDia.snapHora||'');
-    snapEl.innerHTML='<div class="empty" style="color:#0F6E56">Garaje vacío al cierre — ningún vehículo quedó dentro</div>';
-  } else {
-    snapHoraEl.textContent='';
-    snapEl.innerHTML='<div class="empty">Exporta el día para ver el snapshot de cierre</div>';
+      </div>`).join('');
   }
 
   // Mensuales gerencia
@@ -967,33 +715,15 @@ function toggleDay(idx){
   const el=document.getElementById('hday-'+idx);
   if(el) el.classList.toggle('open');
 }
-function toggleDayMgmt(idx){
-  const el=document.getElementById('mgmtday-'+idx);
-  if(el) el.classList.toggle('open');
-}
 
 // ── EXPORTAR Y CERRAR DÍA ────────────────────────────────────
 async function exportarYReiniciar(){
   const hoyStr=fechaStr();
   const items=historial.filter(h=>h.fechaSalida===hoyStr);
   if(!items.length){alert('No hay movimientos del día para exportar.');return;}
-  const sumOf=arr=>arr.reduce((s,h)=>s+calcularIngreso(h),0);
+  const sumOf=arr=>arr.reduce((s,h)=>s+parseFloat(h.precio||0),0);
   const byOp={};
-  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+calcularIngreso(h);});
-
-  // Snapshot de quién queda al cerrar
-  const snapActivos=activos.map(a=>({
-    placa:a.placa,
-    tarifa:a.tarifa,
-    horaEntrada:a.horaEntrada,
-    fechaEntrada:a.fechaEntrada,
-    operador:a.operador,
-    fechaVencimiento:a.fechaVencimiento||'',
-    precio:a.precio,
-    tiempoMin:difMin(a.ts),
-    deuda:infoDeuda(a).deuda
-  }));
-  const snapHora=horaStr();
+  items.forEach(h=>{byOp[h.operador]=(byOp[h.operador]||0)+parseFloat(h.precio||0);});
 
   // Guardar en histDias
   const diaResumen={
@@ -1002,10 +732,7 @@ async function exportarYReiniciar(){
     totalDiarios:sumOf(items.filter(h=>h.tarifa==='diario')),
     totalMensuales:sumOf(items.filter(h=>h.tarifa==='mensual')),
     total:sumOf(items),
-    byOp,
-    snapActivos,
-    snapHora,
-    snapTotal:activos.length
+    byOp
   };
   // Evitar duplicar el mismo día
   histDias=histDias.filter(d=>d.fecha!==hoyStr);
@@ -1043,95 +770,26 @@ function leerSheetPublico(sid){
   });
 }
 
-function normalizarHora(v) {
-  // Limpia formatos como "05:38 a. m." o "5:38 a.m." → "05:38"
-  // y "05:38 p. m." → "17:38"
-  if (!v) return '';
-  v = String(v).trim();
-  const ampm = v.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(a\.?\s*m\.?|p\.?\s*m\.?)?$/i);
-  if (ampm) {
-    let h = parseInt(ampm[1]);
-    const m = ampm[2];
-    const period = (ampm[3] || '').toLowerCase().replace(/[\s.]/g,'');
-    if (period === 'pm' && h < 12) h += 12;
-    if (period === 'am' && h === 12) h = 0;
-    return String(h).padStart(2,'0') + ':' + m;
-  }
-  // Si ya es HH:MM simple
-  if (/^\d{2}:\d{2}$/.test(v)) return v;
-  return v;
-}
-
-function normalizarFecha(v) {
-  if (!v) return '';
-  if (typeof v === 'string' && v.includes('/')) {
-    const p = v.split('/');
-    if (p.length === 3) {
-      return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0')+'/'+(p[2].length===4?p[2]:'20'+p[2]);
-    }
-  }
-  if (typeof v === 'string' && v.includes('-') && v.length >= 10) {
-    const p = v.split('-');
-    return p[2].padStart(2,'0')+'/'+p[1].padStart(2,'0')+'/'+p[0];
-  }
-  return String(v);
-}
-
 function parsearGviz(resp){
   if(!resp||!resp.table) return [];
-  const rawCols = resp.table.cols.map(c=>(c.label||'').trim());
-
-  // Índice por nombre canónico — acepta variantes de Fecha Salida y Fecha de vencimiento
-  const colIdx = {};
-  rawCols.forEach((c,i)=>{
-    colIdx[c] = i;
-    if(/fecha.{0,5}salida/i.test(c))      colIdx['Fecha Salida'] = i;
-    if(/fecha.{0,5}venc/i.test(c))        colIdx['Fecha de vencimiento'] = i;
-    if(/fecha.{0,5}comp/i.test(c))        colIdx['Fecha Compromiso'] = i;
-  });
-
-  const FECHA_COLS = new Set(['Fecha','Fecha Salida','Fecha de vencimiento','Fecha Compromiso']);
-  const HORA_COLS  = new Set(['Entrada','Salida']);
-
-  function parseCell(v, col){
-    if(v === null || v === undefined || v === '') return '';
-    const s = String(v);
-    if(s.startsWith('Date(')){
-      const parts = s.replace('Date(','').replace(')','').split(',').map(Number);
-      const d = new Date(parts[0],parts[1],parts[2]||1,parts[3]||0,parts[4]||0,parts[5]||0);
-      if(HORA_COLS.has(col)) return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-      return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
-    }
-    if(FECHA_COLS.has(col)) return normalizarFecha(s);
-    if(HORA_COLS.has(col))  return normalizarHora(s);
-    return v;
-  }
-
+  const cols=resp.table.cols.map(c=>c.label);
   return (resp.table.rows||[]).map(row=>{
     const obj={};
-    rawCols.forEach((col,i)=>{
-      const cell = row.c ? row.c[i] : null;
-      obj[col] = cell && cell.v !== null && cell.v !== undefined ? parseCell(cell.v, col) : '';
+    row.c.forEach((cell,i)=>{
+      if(!cell||cell.v===null||cell.v===undefined){obj[cols[i]]='';return;}
+      const v=cell.v;
+      if(typeof v==='string'&&v.startsWith('Date(')){
+        const parts=v.replace('Date(','').replace(')','').split(',').map(Number);
+        const d=new Date(parts[0],parts[1],parts[2]||1,parts[3]||0,parts[4]||0,parts[5]||0);
+        if(cols[i]==='Fecha'||cols[i]==='Fecha de vencimiento'||cols[i]==='Fecha Compromiso'){
+          obj[cols[i]]=d.toLocaleDateString('es-PE');
+        } else if(cols[i]==='Entrada'||cols[i]==='Salida'){
+          obj[cols[i]]=d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+        } else {
+          obj[cols[i]]=d.toLocaleDateString('es-PE');
+        }
+      } else { obj[cols[i]]=v; }
     });
-    // Asegurar Fecha Salida canónica
-    if(!obj['Fecha Salida'] && colIdx['Fecha Salida'] !== undefined){
-      const cell = row.c ? row.c[colIdx['Fecha Salida']] : null;
-      obj['Fecha Salida'] = cell && cell.v ? normalizarFecha(String(cell.v)) : '';
-    }
-
-    // Asegurar Salida canónica — leer también por índice (col F = índice 5)
-    // Por si el nombre de columna tiene caracteres especiales
-    if(!obj['Salida']){
-      const si = colIdx['Salida'] !== undefined ? colIdx['Salida'] : 5;
-      const cell = row.c ? row.c[si] : null;
-      if(cell && cell.v !== null && cell.v !== undefined && cell.v !== ''){
-        const raw = String(cell.v);
-        obj['Salida'] = raw.startsWith('Date(')
-          ? parseCell(cell.v, 'Salida')
-          : normalizarHora(raw);
-      }
-    }
-
     return obj;
   });
 }
@@ -1139,11 +797,26 @@ function parsearGviz(resp){
 async function sincronizarDesdeSheets(){
   setSyncState('loading','Leyendo Sheets...');
   try {
-    await sincronizarSilencioso();
-    const hoyStr=fechaStr();
-    const salidashoy=historial.filter(h=>h.fechaSalida===hoyStr);
+    const resp=await leerSheetPublico(SID());
+    const rows=parsearGviz(resp);
+    activos=rows
+      .filter(r=>(!r['Salida']||r['Salida']==='')&&(r['Placa']||'').trim()&&r['Eliminado']!=='SÍ')
+      .map(r=>({
+        placa:(r['Placa']||'').trim(),
+        tarifa:(r['Tipo Tarifa']||'diario').toLowerCase().trim(),
+        precio:parseFloat(r['Precio'])||0,
+        horaEntrada:r['Entrada']||'',
+        fechaEntrada:r['Fecha']||'',
+        operador:r['Operador']||'',
+        fechaVencimiento:r['Fecha de vencimiento']||'',
+        estado:r['Estado']||'',
+        deudaAcumulada:parseFloat(r['Deuda Acumulada'])||0,
+        ts:parsearTs(r['Fecha']||'',r['Entrada']||'')
+      }))
+      .filter(r=>r.placa);
+    save();renderAll();
     setSyncState('ok','Datos cargados');
-    alert_('alertConfig','Activos: '+activos.length+' · Salidas hoy: '+salidashoy.length,'success');
+    alert_('alertConfig','Cargados '+activos.length+' vehículos desde Sheets','success');
   } catch(e){
     setSyncState('error','Error');
     alert_('alertConfig','No se pudo leer la hoja. Verifica que esté compartida como Lector.','error');
@@ -1155,7 +828,7 @@ async function probarConexion(){
   setSyncState('loading','Probando...');
   try {
     const resp=await leerSheetPublico(sid);
-    if(resp&&resp.table){setSyncState('ok','Conectado');alert_('alertConfig','Conexión exitosa','success');}
+    if(resp&&resp.table){localStorage.setItem('pk_sid',sid);setSyncState('ok','Conectado');alert_('alertConfig','Conexión exitosa','success');}
     else throw new Error('sin tabla');
   } catch(e){setSyncState('error','Sin conexión');alert_('alertConfig','No se pudo conectar.','error');}
 }
@@ -1163,29 +836,29 @@ async function probarConexion(){
 async function enviarASheets(tipo,data){
   const url=WEBURL();if(!url)return;
   setSyncState('loading','Enviando...');
-  await enviarConReintento(tipo,data);
-  setSyncState('ok','Enviado');
+  try {await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({tipo,...data})});setSyncState('ok','Sincronizado');}
+  catch(e){setSyncState('error','Error');}
 }
 
 // ── CONFIG ───────────────────────────────────────────────────
 function guardarConfig(){
-  // Las tarifas se actualizan en el selector pero no se persisten
-  // La URL y Sheet ID son hardcodeadas
+  const url=document.getElementById('webAppUrl')?.value.trim()||'';
+  const sid=document.getElementById('sheetId')?.value.trim()||'';
+  const cap=document.getElementById('capacidad')?.value||'';
   const td=document.getElementById('tDiario')?.value||'';
   const tm=document.getElementById('tMensual')?.value||'';
+  if(url) localStorage.setItem('pk_url',url);
+  if(sid) localStorage.setItem('pk_sid',sid);
+  if(cap) localStorage.setItem('pk_cap',cap);
+  if(td)  localStorage.setItem('pk_tDiario',td);
+  if(tm)  localStorage.setItem('pk_tMensual',tm);
   const opts=document.getElementById('tarifa').options;
   if(td) opts[0].text='Diario — S/ '+parseFloat(td).toFixed(2);
   if(tm) opts[1].text='Mensual — S/ '+parseFloat(tm).toFixed(2);
 }
 
 function cargarConfig(){
-  const map={
-    webAppUrl: WEB_APP_DEFAULT,
-    sheetId:   SHEET_ID_DEFAULT,
-    capacidad: '50',
-    tDiario:   '5',
-    tMensual:  '100'
-  };
+  const map={webAppUrl:localStorage.getItem('pk_url')||WEB_APP_DEFAULT,sheetId:localStorage.getItem('pk_sid')||SHEET_ID_DEFAULT,capacidad:localStorage.getItem('pk_cap')||'50',tDiario:localStorage.getItem('pk_tDiario')||'5',tMensual:localStorage.getItem('pk_tMensual')||'100'};
   Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val;});
 }
 
@@ -1206,12 +879,8 @@ function alert_(elId,msg,type){
 function setSyncState(state,text){
   const dot=document.getElementById('syncDot'),txt=document.getElementById('syncText');
   dot.className='sync-dot'+(state==='loading'?' loading':state==='error'?' error':'');
-  const pending = pendientes && pendientes.length ? ' ('+pendientes.length+' pend.)' : '';
-  txt.textContent=text+pending;
-  if(state==='ok') setTimeout(()=>{
-    const p=pendientes&&pendientes.length?' ('+pendientes.length+' pend.)':'';
-    txt.textContent='Sincronizado'+p;
-  },3000);
+  txt.textContent=text;
+  if(state==='ok') setTimeout(()=>{txt.textContent='Conectado';},3000);
 }
 
 function descargarScript(){
@@ -1325,236 +994,13 @@ function jsonResp(obj, cb) {
   alert_('alertConfig','Descargado: garage_apps_script.gs','success');
 }
 
-// ── COLA DE PENDIENTES ───────────────────────────────────────
-// Operaciones que no llegaron a Sheets se guardan y reintentan
-let pendientes = [];
-
-function savePendientes() {
-  // Sin localStorage
-}
-
-async function enviarConReintento(tipo, data) {
-  const url = WEBURL();
-  if (!url) return;
-  try {
-    await fetch(url, { method:'POST', mode:'no-cors', body:JSON.stringify({tipo,...data}) });
-    // no-cors no confirma, pero al menos llegó sin error de red
-  } catch(e) {
-    // Error de red — guardar en cola para reintento
-    pendientes.push({ tipo, data, ts: Date.now() });
-    savePendientes();
-    setSyncState('error', 'Sin red · pendiente');
-  }
-}
-
-async function procesarPendientes() {
-  if (!pendientes.length) return;
-  const url = WEBURL();
-  if (!url) return;
-  const restantes = [];
-  for (const p of pendientes) {
-    try {
-      await fetch(url, { method:'POST', mode:'no-cors', body:JSON.stringify({tipo:p.tipo,...p.data}) });
-      // Enviado OK — no agregar a restantes
-    } catch(e) {
-      restantes.push(p);
-    }
-  }
-  pendientes = restantes;
-  savePendientes();
-}
-
-// ── SYNC AUTOMÁTICO CADA 30 SEG ──────────────────────────────
-let syncActivo = false;
-
-async function syncLoop() {
-  if (syncActivo) return;
-  syncActivo = true;
-  try {
-    await procesarPendientes();
-    await sincronizarSilencioso();
-  } finally {
-    syncActivo = false;
-  }
-}
-
-// Sync silencioso: igual que sincronizarDesdeSheets pero sin alertas
-async function sincronizarSilencioso() {
-  try {
-    const resp = await leerSheetPublico(SID());
-    const rows = parsearGviz(resp);
-    const hoyStr = fechaStr();
-
-    // Activos: vehículos sin salida en Sheets
-    // Un vehículo tiene salida si: tiene hora de Salida O tiene Fecha Salida registrada
-    activos = rows
-      .filter(r => {
-        const tienePlaca = (r['Placa']||'').trim() !== '';
-        const noEliminado = r['Eliminado']!=='SÍ' && r['Eliminado']!=='SI' && r['Eliminado']!==true;
-        // Verificar si tiene salida por hora O por fecha de salida
-        const horaSalida = (r['Salida']||'').toString().trim();
-        const fechaSalidaVal = (r['Fecha Salida']||'').toString().trim();
-        const tieneSalida = horaSalida !== '' || fechaSalidaVal !== '';
-        return !tieneSalida && tienePlaca && noEliminado;
-      })
-      .map(r => ({
-        placa:            (r['Placa']||'').trim(),
-        tarifa:           (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-        precio:           parseFloat(r['Precio'])||0,
-        horaEntrada:      r['Entrada']||'',
-        fechaEntrada:     r['Fecha']||'',
-        operador:         r['Operador']||'',
-        fechaVencimiento: r['Fecha de vencimiento']||'',
-        estado:           r['Estado']||'',
-        deudaAcumulada:   parseFloat(r['Deuda Acumulada'])||0,
-        ts:               parsearTs(r['Fecha']||'', r['Entrada']||'')
-      }))
-      .filter(r => r.placa);
-
-    // Procesar TODAS las salidas de Sheets — separar hoy vs días anteriores
-    historial = historial.filter(h => h.fechaSalida !== hoyStr);
-    const diasEnSheets = {};
-
-    rows
-      .filter(r => r['Salida'] && r['Salida'] !== '' && (r['Placa']||'').trim())
-      .forEach(r => {
-        const placa = (r['Placa']||'').trim();
-        if (!placa) return;
-        // Fecha de salida: SOLO Fecha Salida, nunca fallback a fecha de entrada
-        const fechaSalida = (r['Fecha Salida'] && r['Fecha Salida'] !== '')
-          ? r['Fecha Salida'] : '';
-        if (!fechaSalida) return; // sin fecha de salida no sabemos a qué día pertenece
-
-        const item = {
-          placa,
-          tarifa:           (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-          precio:           parseFloat(r['Precio'])||0,
-          horaEntrada:      r['Entrada']||'',
-          fechaEntrada:     r['Fecha']||'',
-          horaSalida:       r['Salida']||'',
-          fechaSalida,
-          operador:         r['Operador']||'',
-          fechaVencimiento: r['Fecha de vencimiento']||'',
-          deudaFinal:       parseFloat(r['Deuda Acumulada'])||0,
-          minutos:          0
-        };
-
-        if (fechaSalida === hoyStr) {
-          // Salida de hoy → historial del día
-          historial.push(item);
-        } else {
-          // Salida de otro día → agrupar para histDias
-          if (!diasEnSheets[fechaSalida]) diasEnSheets[fechaSalida] = [];
-          diasEnSheets[fechaSalida].push(item);
-        }
-      });
-
-    Object.entries(diasEnSheets).forEach(([fecha, items]) => {
-      const yaGuardadoIdx = histDias.findIndex(d => d.fecha === fecha);
-      const yaGuardado = yaGuardadoIdx >= 0 ? histDias[yaGuardadoIdx] : null;
-      // Vehículos dentro del garaje esa noche:
-      // Entraron en fecha <= fecha del día Y (sin salida O salida posterior a ese día)
-      const activosDiaFresh = rows
-        .filter(r => {
-          const placa = (r['Placa']||'').trim();
-          if (!placa) return false;
-          const fe = (r['Fecha']||'').trim();
-          // Entró ese día o antes
-          if (!fe) return false;
-          const dEntrada = new Date(fe.split('/')[2], fe.split('/')[1]-1, fe.split('/')[0]);
-          const dDia     = new Date(fecha.split('/')[2], fecha.split('/')[1]-1, fecha.split('/')[0]);
-          if (dEntrada > dDia) return false; // entró después, no aplica
-          // Sin salida = sigue dentro
-          const sinSalida = !r['Salida'] || r['Salida'] === '';
-          if (sinSalida) return true;
-          // Con salida — verificar si salió después de ese día
-          const fs = (r['Fecha Salida']||'').trim();
-          if (!fs) return false;
-          const dSalida = new Date(fs.split('/')[2], fs.split('/')[1]-1, fs.split('/')[0]);
-          return dSalida > dDia; // salió después de ese día → estaba dentro esa noche
-        })
-        .map(r => ({
-          placa: (r['Placa']||'').trim(),
-          tarifa: (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-          precio: parseFloat(r['Precio'])||0,
-          horaEntrada: r['Entrada']||'',
-          fechaEntrada: r['Fecha']||'',
-          operador: r['Operador']||'',
-          fechaVencimiento: r['Fecha de vencimiento']||''
-        }));
-
-      // Si ya existe, solo actualizar activosDia
-      if (yaGuardado) {
-        histDias[yaGuardadoIdx].activosDia = activosDiaFresh;
-        return;
-      }
-      if (items.length > 0) {
-        const sumOf = arr => arr.reduce((s,h) => s + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0), 0);
-        const byOp = {};
-        items.forEach(h => { byOp[h.operador] = (byOp[h.operador]||0) + parseFloat(h.precio||0) + parseFloat(h.deudaFinal||0); });
-        // Snapshot de activos de ese día: vehículos que entraron ese día y aún no han salido
-        // o que entraron ese día y salieron en días siguientes
-        const activosDia = rows
-          .filter(r => {
-            const fechaEntrada = (r['Fecha']||'').trim();
-            const sinSalida = !r['Salida'] || r['Salida'] === '';
-            const salidaPosterior = r['Fecha Salida'] && r['Fecha Salida'] !== fecha;
-            return fechaEntrada === fecha && (r['Placa']||'').trim() && (sinSalida || salidaPosterior);
-          })
-          .map(r => ({
-            placa: (r['Placa']||'').trim(),
-            tarifa: (r['Tipo Tarifa']||'diario').toLowerCase().trim(),
-            precio: parseFloat(r['Precio'])||0,
-            horaEntrada: r['Entrada']||'',
-            operador: r['Operador']||'',
-            fechaVencimiento: r['Fecha de vencimiento']||''
-          }));
-
-        histDias.push({
-          fecha,
-          items,
-          totalDiarios: sumOf(items.filter(h => (h.tarifa||'').toLowerCase()==='diario')),
-          totalMensuales: sumOf(items.filter(h => (h.tarifa||'').toLowerCase()==='mensual')),
-          total: sumOf(items),
-          byOp,
-          activosDia: activosDiaFresh,
-          snapActivos: [],
-          snapHora: '',
-          snapTotal: 0,
-          cierreAutomatico: true
-        });
-      }
-    });
-
-    // El historial local solo guarda el día de hoy
-    historial = historial.filter(h => h.fechaSalida === hoyStr);
-
-    save();
-    renderAll();
-    setSyncState('ok', 'Sincronizado');
-  } catch(e) {
-    // Fallo silencioso
-  }
-}
-
 // ── INIT ─────────────────────────────────────────────────────
 document.getElementById('fechaHoy').textContent=hoyLong();
-
-cargarConfig();
-// ── INIT LIMPIO — todo viene de Sheets, sin localStorage ────
-// Variables en memoria (se pierden al recargar, pero Sheets las repone en segundos)
-activos  = [];
-historial = [];
-histDias  = [];
-pendientes = [];
-
-document.getElementById('fechaHoy').textContent = hoyLong();
+if(!localStorage.getItem('pk_sid')) localStorage.setItem('pk_sid',SHEET_ID_DEFAULT);
+if(!localStorage.getItem('pk_url')) localStorage.setItem('pk_url',WEB_APP_DEFAULT);
 cargarConfig();
 renderAll();
-// Sync inmediato al abrir
-sincronizarSilencioso();
-// Sync automático cada 10 segundos
-setInterval(syncLoop, 10000);
+setInterval(renderAll,60000);
 </script>
 </body>
 </html>
